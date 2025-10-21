@@ -9,7 +9,7 @@ Sistem manajemen ruangan kantor cerdas dengan fitur monitoring occupancy real-ti
 ![Express.js](https://img.shields.io/badge/Express.js-4.18+-000000.svg)
 
 <img width="1919" height="965" alt="image" src="https://github.com/user-attachments/assets/3c756e99-f270-4ea2-96db-7ddf1cf431fc" />
- 
+
 ## 🎉 What's New in v1.0 - FIXED & ENHANCED
 
 ### 🐛 **Bug Fixes & Improvements**
