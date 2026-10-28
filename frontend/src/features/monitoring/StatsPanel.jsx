@@ -1,4 +1,4 @@
-import { Building2, Link2, Users } from 'lucide-react';
+import { Building2, DoorOpen, Users } from 'lucide-react';
 import { STATUS_META, STATUS_ORDER, formatPercent } from '../../domain/occupancy';
 
 function Stat({ icon: Icon, label, value, hint }) {
@@ -14,7 +14,7 @@ function Stat({ icon: Icon, label, value, hint }) {
   );
 }
 
-export default function StatsPanel({ summary, connectionCount }) {
+export default function StatsPanel({ summary, doorCount }) {
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Stat icon={Building2} label="Ruangan" value={summary.totalRooms} />
@@ -29,7 +29,7 @@ export default function StatsPanel({ summary, connectionCount }) {
         label="Rata-rata occupancy"
         value={formatPercent(summary.averagePercent)}
       />
-      <Stat icon={Link2} label="Koneksi" value={connectionCount} />
+      <Stat icon={DoorOpen} label="Pintu & penghubung" value={doorCount} />
 
       <div className="col-span-2 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 lg:col-span-4">
         <p className="text-sm text-slate-500">Sebaran status</p>

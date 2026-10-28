@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, ChevronRight, Unlink } from 'lucide-react';
+import { AlertTriangle, ArrowUpDown, CheckCircle2, ChevronRight, Unlink } from 'lucide-react';
 import { formatPercent } from '../../domain/occupancy';
 
 const STATUS_VIEW = {
@@ -9,41 +9,60 @@ const STATUS_VIEW = {
   },
   penuh: {
     icon: AlertTriangle,
-    title: 'Semua jalur melewati ruangan penuh',
+    title: 'Jalur terhalang ruangan penuh',
     className: 'bg-red-50 text-red-800 ring-red-600/20',
   },
   'tidak-ada-jalur': {
     icon: Unlink,
-    title: 'Tidak ada jalur yang menghubungkan kedua ruangan',
+    title: 'Tidak ada pintu yang menyambungkan kedua ruangan',
     className: 'bg-slate-50 text-slate-700 ring-slate-600/20',
   },
 };
 
-function RoutePath({ roomIds, blockedRoomIds, roomsById }) {
+const formatMeters = (value) => `${value.toLocaleString('id-ID', { maximumFractionDigits: 1 })} m`;
+
+function RoutePath({ route, roomsById, floorName }) {
   return (
     <ol className="flex flex-wrap items-center gap-1">
-      {roomIds.map((id, index) => (
-        <li key={id} className="flex items-center gap-1">
-          {index > 0 && <ChevronRight className="size-4 text-slate-400" aria-hidden />}
-          <span
-            className={`rounded-md px-2 py-1 text-sm ${
-              blockedRoomIds.includes(id)
-                ? 'bg-red-100 font-medium text-red-700 line-through'
-                : 'bg-white text-slate-800 ring-1 ring-inset ring-slate-200'
-            }`}
-          >
-            {roomsById.get(id)?.nama_ruangan}
-          </span>
-        </li>
-      ))}
+      {route.roomIds.map((id, index) => {
+        const room = roomsById.get(id);
+        const previous = index > 0 ? roomsById.get(route.roomIds[index - 1]) : null;
+        const changesFloor = previous && previous.lantai_id !== room.lantai_id;
+        return (
+          <li key={id} className="flex items-center gap-1">
+            {index > 0 &&
+              (changesFloor ? (
+                <span className="flex items-center gap-1 rounded-md bg-slate-900 px-2 py-1 text-xs font-medium text-white">
+                  <ArrowUpDown className="size-3" aria-hidden />
+                  {floorName(room.lantai_id)}
+                </span>
+              ) : (
+                <ChevronRight className="size-4 text-slate-400" aria-hidden />
+              ))}
+            <span
+              className={`rounded-md px-2 py-1 text-sm ${
+                route.blockedRoomIds.includes(id)
+                  ? 'bg-red-100 font-medium text-red-700 line-through'
+                  : 'bg-white text-slate-800 ring-1 ring-inset ring-slate-200'
+              }`}
+            >
+              {room.nama_ruangan}
+            </span>
+          </li>
+        );
+      })}
     </ol>
   );
 }
 
-export default function RouteResult({ plan, roomsById, selectedIndex, onSelect }) {
+export default function RouteResult({ plan, roomsById, floors, selectedIndex, onSelect }) {
   const view = STATUS_VIEW[plan.status];
   const Icon = view.icon;
   const selected = plan.routes[selectedIndex];
+  const floorName = (id) => floors.find((f) => f.id === id)?.nama ?? '?';
+  const blockedNames = (plan.bestRoute?.blockedRoomIds ?? [])
+    .map((id) => roomsById.get(id)?.nama_ruangan)
+    .join(', ');
 
   return (
     <div className="space-y-4">
@@ -51,40 +70,33 @@ export default function RouteResult({ plan, roomsById, selectedIndex, onSelect }
         <Icon className="mt-0.5 size-5 shrink-0" aria-hidden />
         <div className="text-sm">
           <p className="font-semibold">{view.title}</p>
-          {plan.status === 'penuh' && (
-            <p className="mt-0.5">
-              Ruangan penuh:{' '}
-              {plan.bestRoute.blockedRoomIds
-                .map((id) => roomsById.get(id)?.nama_ruangan)
-                .join(', ')}
-            </p>
-          )}
+          {plan.status === 'penuh' && <p className="mt-0.5">Ruangan penuh: {blockedNames}</p>}
         </div>
       </div>
 
       {selected && (
         <div className="rounded-lg bg-slate-50 p-4 ring-1 ring-inset ring-slate-200">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <p className="text-sm font-semibold text-slate-900">
               {selectedIndex === 0 ? 'Jalur rekomendasi' : `Alternatif ${selectedIndex}`}
             </p>
             <p className="text-xs text-slate-500">
-              {selected.hops} langkah · rata-rata isi{' '}
-              {formatPercent(selected.averageOccupancy * 100)} · skor {selected.score}
+              <span className="text-base font-semibold text-slate-900">
+                {formatMeters(selected.length)}
+              </span>{' '}
+              · {selected.roomIds.length - 1} pintu
+              {selected.floorChanges > 0 && ` · ${selected.floorChanges}× pindah lantai`} ·
+              rata-rata isi {formatPercent(selected.averageOccupancy * 100)}
             </p>
           </div>
-          <RoutePath
-            roomIds={selected.roomIds}
-            blockedRoomIds={selected.blockedRoomIds}
-            roomsById={roomsById}
-          />
+          <RoutePath route={selected} roomsById={roomsById} floorName={floorName} />
         </div>
       )}
 
       {plan.routes.length > 1 && (
         <div>
           <p className="mb-2 text-sm font-medium text-slate-700">
-            Semua kemungkinan jalur ({plan.routes.length})
+            Pilihan jalur ({plan.routes.length})
           </p>
           <ul className="max-h-64 space-y-1 overflow-y-auto">
             {plan.routes.map((route, index) => (
@@ -110,7 +122,7 @@ export default function RouteResult({ plan, roomsById, selectedIndex, onSelect }
                     </span>
                   )}
                   <span className="shrink-0 text-xs tabular-nums text-slate-500">
-                    skor {route.score}
+                    {formatMeters(route.length)}
                   </span>
                 </button>
               </li>

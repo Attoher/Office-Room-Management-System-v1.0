@@ -11,14 +11,14 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "seed:demo": "vite-node scripts/seed-demo.js"
   },
   "dependencies": {
     "firebase": "^10.14.1",
     "lucide-react": "^0.453.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "vis-network": "^9.1.9"
+    "react-dom": "^18.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

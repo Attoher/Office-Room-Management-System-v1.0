@@ -27,7 +27,11 @@ export default [
     },
   },
   {
-    files: ['*.config.js', '**/*.test.js'],
+    files: ['*.config.js', '**/*.test.js', 'scripts/**/*.js'],
     languageOptions: { globals: globals.node },
+  },
+  {
+    files: ['scripts/**/*.js'],
+    rules: { 'no-console': 'off' },
   },
 ];

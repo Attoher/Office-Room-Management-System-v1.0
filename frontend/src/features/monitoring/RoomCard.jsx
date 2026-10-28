@@ -3,9 +3,10 @@ import { Maximize2, Minus, Plus, RotateCcw, Users } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { OccupancyBar, StatusBadge } from '../../components/ui/StatusBadge';
 import { useToast } from '../../components/ui/feedbackContext';
+import { ROOM_TYPES } from '../../domain/geometry';
 import { changeOccupancy, setOccupancy } from '../../services/roomService';
 
-export default function RoomCard({ room }) {
+export default function RoomCard({ room, floorName }) {
   const toast = useToast();
   const [pending, setPending] = useState(false);
 
@@ -30,7 +31,11 @@ export default function RoomCard({ room }) {
           <h3 className="truncate font-semibold text-slate-900" title={room.nama_ruangan}>
             {room.nama_ruangan}
           </h3>
-          <p className="mt-0.5 text-xs text-slate-500">{room.luas} m²</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {[floorName, ROOM_TYPES[room.tipe]?.label, `${room.luas} m²`]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
         </div>
         <StatusBadge room={room} />
       </div>

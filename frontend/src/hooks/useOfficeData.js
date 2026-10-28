@@ -1,46 +1,46 @@
 import { useEffect, useMemo, useState } from 'react';
-import { subscribeConnections } from '../services/connectionService';
+import { subscribeDoors } from '../services/doorService';
+import { subscribeFloors } from '../services/floorService';
 import { subscribeRooms } from '../services/roomService';
 
 /**
- * Data ruangan & koneksi secara realtime dari Firestore.
+ * Data lantai, ruangan, dan pintu secara realtime dari Firestore.
  * status: 'loading' | 'ready' | 'error'
  */
 export function useOfficeData() {
+  const [floors, setFloors] = useState(null);
   const [rooms, setRooms] = useState(null);
-  const [rawConnections, setRawConnections] = useState(null);
+  const [rawDoors, setRawDoors] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const unsubscribeRooms = subscribeRooms((data) => {
-      setRooms(data);
-      setError(null);
-    }, setError);
-    const unsubscribeConnections = subscribeConnections(setRawConnections, setError);
-    return () => {
-      unsubscribeRooms();
-      unsubscribeConnections();
-    };
+    const unsubscribes = [
+      subscribeFloors(setFloors, setError),
+      subscribeRooms(setRooms, setError),
+      subscribeDoors(setRawDoors, setError),
+    ];
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
   }, []);
 
   const roomsById = useMemo(() => new Map((rooms ?? []).map((room) => [room.id, room])), [rooms]);
 
-  // Koneksi yang ruangannya sudah tidak ada disembunyikan, sisanya dilengkapi nama ruangan
-  const connections = useMemo(
-    () =>
-      (rawConnections ?? [])
-        .filter((c) => roomsById.has(c.room_from) && roomsById.has(c.room_to))
-        .map((c) => ({
-          ...c,
-          from_name: roomsById.get(c.room_from).nama_ruangan,
-          to_name: roomsById.get(c.room_to).nama_ruangan,
-        })),
-    [rawConnections, roomsById],
+  // Pintu yang ruangannya sudah tidak ada disembunyikan
+  const doors = useMemo(
+    () => (rawDoors ?? []).filter((d) => roomsById.has(d.room_from) && roomsById.has(d.room_to)),
+    [rawDoors, roomsById],
   );
 
+  const loaded = floors !== null && rooms !== null && rawDoors !== null;
   let status = 'ready';
-  if (error && (rooms === null || rawConnections === null)) status = 'error';
-  else if (rooms === null || rawConnections === null) status = 'loading';
+  if (error && !loaded) status = 'error';
+  else if (!loaded) status = 'loading';
 
-  return { rooms: rooms ?? [], roomsById, connections, status, error };
+  return {
+    floors: floors ?? [],
+    rooms: rooms ?? [],
+    roomsById,
+    doors,
+    status,
+    error,
+  };
 }

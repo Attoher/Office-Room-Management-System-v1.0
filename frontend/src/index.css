@@ -8,7 +8,19 @@
   }
 }
 
-/* Tooltip bawaan vis-network */
-div.vis-tooltip {
-  @apply rounded-lg border-0 bg-white text-slate-700 shadow-lg ring-1 ring-slate-200;
+/* Garis jalur tamu di denah (satuan meter) bergerak ke arah tujuan */
+.route-line {
+  animation: route-flow 0.8s linear infinite;
+}
+
+@keyframes route-flow {
+  to {
+    stroke-dashoffset: -0.75;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-line {
+    animation: none;
+  }
 }

@@ -2,20 +2,55 @@ rules_version = '2';
 
 // Aplikasi berjalan tanpa login, jadi rules berfungsi sebagai validasi data:
 // bentuk dokumen, rentang nilai, dan konsistensi antar dokumen.
+// Ruangan bertumpuk dicegah di aplikasi (rules tidak bisa membandingkan antar dokumen).
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    function countersAfter() {
+      return getAfter(/databases/$(database)/documents/meta/counters).data;
+    }
+
+    function roomDoc(id) {
+      return get(/databases/$(database)/documents/rooms/$(string(id)));
+    }
+
+    // Kelipatan grid 0,5 m
+    function onGrid(v) {
+      return v is number && v * 2 == math.floor(v * 2);
+    }
+
     function validRoom(data, roomId) {
-      return data.keys().hasOnly(['id', 'nama_ruangan', 'nama_key', 'luas', 'kapasitas_max',
-                                  'occupancy', 'created_at', 'updated_at'])
+      return data.keys().hasOnly(['id', 'nama_ruangan', 'nama_key', 'tipe', 'lantai_id',
+                                  'x', 'y', 'w', 'h', 'luas', 'kapasitas_max', 'occupancy',
+                                  'created_at', 'updated_at'])
         && data.id is int && string(data.id) == roomId
         && data.nama_ruangan is string
         && data.nama_ruangan.size() > 0 && data.nama_ruangan.size() <= 60
         && data.nama_key == data.nama_ruangan.lower()
-        && data.luas is number && data.luas > 0 && data.luas <= 100000
+        && data.tipe in ['ruangan', 'lorong', 'tangga', 'lift']
+        && data.lantai_id is int
+        && exists(/databases/$(database)/documents/floors/$(string(data.lantai_id)))
+        && onGrid(data.x) && onGrid(data.y) && onGrid(data.w) && onGrid(data.h)
+        && data.w >= 1 && data.h >= 1 && data.w <= 500 && data.h <= 500
+        && math.abs(data.x) <= 500 && math.abs(data.y) <= 500
+        && data.luas == data.w * data.h
         && data.kapasitas_max is int && data.kapasitas_max > 0 && data.kapasitas_max <= 1000
         && data.occupancy is int && data.occupancy >= 0 && data.occupancy <= data.kapasitas_max
         && data.updated_at == request.time;
+    }
+
+    match /floors/{floorId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['id', 'nama', 'created_at'])
+        && request.resource.data.id is int && string(request.resource.data.id) == floorId
+        && request.resource.data.nama is string
+        && request.resource.data.nama.size() > 0 && request.resource.data.nama.size() <= 40
+        && request.resource.data.created_at == request.time
+        && countersAfter().floors == request.resource.data.id;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nama'])
+        && request.resource.data.nama is string
+        && request.resource.data.nama.size() > 0 && request.resource.data.nama.size() <= 40;
+      allow delete: if true;
     }
 
     match /rooms/{roomId} {
@@ -25,41 +60,58 @@ service cloud.firestore {
       allow create: if validRoom(request.resource.data, roomId)
         && request.resource.data.occupancy == 0
         && request.resource.data.created_at == request.time
-        && getAfter(/databases/$(database)/documents/meta/counters).data.rooms
-           == request.resource.data.id;
+        && countersAfter().rooms == request.resource.data.id;
 
       allow update: if validRoom(request.resource.data, roomId)
         && request.resource.data.id == resource.data.id
+        && request.resource.data.lantai_id == resource.data.lantai_id
         && request.resource.data.created_at == resource.data.created_at;
 
       allow delete: if true;
     }
 
-    // ID dokumen = "<room_from>_<room_to>" dengan room_from < room_to (satu koneksi per pasangan)
-    match /connections/{connectionId} {
+    // ID dokumen = "<room_from>_<room_to>" dengan room_from < room_to (satu pintu per pasangan).
+    // Satu lantai: pintu di dinding bersama (offset dalam meter).
+    // Beda lantai: penghubung tangga/lift (offset null).
+    match /doors/{doorId} {
       allow read, delete: if true;
 
-      allow create: if request.resource.data.keys().hasOnly(['room_from', 'room_to', 'created_at'])
+      allow create: if request.resource.data.keys().hasOnly(['room_from', 'room_to', 'offset', 'created_at'])
         && request.resource.data.room_from is int
         && request.resource.data.room_to is int
         && request.resource.data.room_from < request.resource.data.room_to
-        && connectionId == string(request.resource.data.room_from) + '_'
-                           + string(request.resource.data.room_to)
+        && doorId == string(request.resource.data.room_from) + '_'
+                     + string(request.resource.data.room_to)
         && request.resource.data.created_at == request.time
-        && exists(/databases/$(database)/documents/rooms/$(string(request.resource.data.room_from)))
-        && exists(/databases/$(database)/documents/rooms/$(string(request.resource.data.room_to)));
+        && validDoorEnds(roomDoc(request.resource.data.room_from).data,
+                         roomDoc(request.resource.data.room_to).data,
+                         request.resource.data.offset);
 
-      allow update: if false;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offset'])
+        && request.resource.data.offset is number
+        && request.resource.data.offset >= 0 && request.resource.data.offset <= 500;
     }
 
-    // Counter ID ruangan hanya boleh naik satu per satu
+    function validDoorEnds(a, b, offset) {
+      return (a.lantai_id == b.lantai_id && offset is number && offset >= 0 && offset <= 500)
+        || (a.lantai_id != b.lantai_id && offset == null
+            && a.tipe in ['tangga', 'lift'] && b.tipe in ['tangga', 'lift']);
+    }
+
+    // Counter ID hanya boleh naik satu per satu
     match /meta/counters {
       allow read: if true;
-      allow create: if request.resource.data.keys().hasOnly(['rooms'])
-        && request.resource.data.rooms == 1;
-      allow update: if request.resource.data.keys().hasOnly(['rooms'])
-        && request.resource.data.rooms == resource.data.get('rooms', 0) + 1;
+      allow create: if request.resource.data.keys().hasOnly(['rooms', 'floors'])
+        && request.resource.data.get('rooms', 0) in [0, 1]
+        && request.resource.data.get('floors', 0) in [0, 1];
+      allow update: if request.resource.data.keys().hasOnly(['rooms', 'floors'])
+        && stepsByOne('rooms') && stepsByOne('floors');
       allow delete: if false;
+    }
+
+    function stepsByOne(key) {
+      return request.resource.data.get(key, 0) == resource.data.get(key, 0)
+        || request.resource.data.get(key, 0) == resource.data.get(key, 0) + 1;
     }
   }
 }

@@ -15,11 +15,12 @@ import { resetAllOccupancy } from '../../services/roomService';
 import RoomCard from './RoomCard';
 import StatsPanel from './StatsPanel';
 
-export default function MonitoringView({ rooms, connections, onNavigate }) {
+export default function MonitoringView({ floors, rooms, doors, onNavigate }) {
   const confirm = useConfirm();
   const toast = useToast();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('semua');
+  const [floorFilter, setFloorFilter] = useState('semua');
   const [resetting, setResetting] = useState(false);
 
   const summary = useMemo(() => summarizeRooms(rooms), [rooms]);
@@ -29,9 +30,12 @@ export default function MonitoringView({ rooms, connections, onNavigate }) {
     return rooms.filter(
       (room) =>
         room.nama_ruangan.toLowerCase().includes(keyword) &&
-        (statusFilter === 'semua' || getOccupancyStatus(room) === statusFilter),
+        (statusFilter === 'semua' || getOccupancyStatus(room) === statusFilter) &&
+        (floorFilter === 'semua' || room.lantai_id === Number(floorFilter)),
     );
-  }, [rooms, search, statusFilter]);
+  }, [rooms, search, statusFilter, floorFilter]);
+
+  const floorName = (id) => floors.find((f) => f.id === id)?.nama ?? '';
 
   const handleReset = async () => {
     const ok = await confirm({
@@ -58,7 +62,7 @@ export default function MonitoringView({ rooms, connections, onNavigate }) {
         <EmptyState
           icon={Building2}
           title="Belum ada ruangan"
-          description="Tambahkan ruangan di menu Manajemen untuk mulai memantau occupancy."
+          description="Gambar ruangan di editor denah (menu Manajemen) untuk mulai memantau occupancy."
           action={<Button onClick={() => onNavigate('management')}>Tambah ruangan</Button>}
         />
       </Card>
@@ -67,7 +71,7 @@ export default function MonitoringView({ rooms, connections, onNavigate }) {
 
   return (
     <div className="space-y-6">
-      <StatsPanel summary={summary} connectionCount={connections.length} />
+      <StatsPanel summary={summary} doorCount={doors.length} />
 
       <Card>
         <CardHeader
@@ -102,6 +106,21 @@ export default function MonitoringView({ rooms, connections, onNavigate }) {
                 aria-label="Cari ruangan"
               />
             </div>
+            {floors.length > 1 && (
+              <Select
+                value={floorFilter}
+                onChange={(e) => setFloorFilter(e.target.value)}
+                className="sm:w-40"
+                aria-label="Filter lantai"
+              >
+                <option value="semua">Semua lantai</option>
+                {floors.map((floor) => (
+                  <option key={floor.id} value={floor.id}>
+                    {floor.nama}
+                  </option>
+                ))}
+              </Select>
+            )}
             <Select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -122,7 +141,7 @@ export default function MonitoringView({ rooms, connections, onNavigate }) {
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {visibleRooms.map((room) => (
-                <RoomCard key={room.id} room={room} />
+                <RoomCard key={room.id} room={room} floorName={floorName(room.lantai_id)} />
               ))}
             </div>
           )}

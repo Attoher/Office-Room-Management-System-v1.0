@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 
 // Konfigurasi web app Firebase (project roomofficemanagement). Nilai ini memang publik;
 // keamanan data diatur oleh firestore.rules.
@@ -14,3 +14,10 @@ const firebaseConfig = {
 };
 
 export const db = getFirestore(initializeApp(firebaseConfig));
+
+// Untuk pengujian lokal: VITE_FIRESTORE_EMULATOR=127.0.0.1:8080 mengarahkan ke Firestore emulator
+const emulator = import.meta.env.VITE_FIRESTORE_EMULATOR;
+if (emulator) {
+  const [host, port] = emulator.split(':');
+  connectFirestoreEmulator(db, host, Number(port));
+}

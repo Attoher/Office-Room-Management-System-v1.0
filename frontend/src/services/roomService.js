@@ -13,20 +13,35 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore';
-import { toNameKey, validateRoomInput } from '../domain/roomValidation';
+import { geometryError, snapToGrid } from '../domain/geometry';
+import { roomArea, toNameKey, validateRoomInput } from '../domain/roomValidation';
 import { db } from './firebase';
 import { AppError, toAppError } from './errors';
 
-// rooms/{id}: { id, nama_ruangan, nama_key, luas, kapasitas_max, occupancy, created_at, updated_at }
-// meta/counters: { rooms } — ID numerik terakhir yang dipakai
+// rooms/{id}: { id, nama_ruangan, nama_key, tipe, lantai_id, x, y, w, h, luas,
+//               kapasitas_max, occupancy, created_at, updated_at }
+// Posisi & ukuran dalam meter; luas selalu w × h.
+// meta/counters: { rooms, floors } — ID numerik terakhir yang dipakai
 const roomsCol = collection(db, 'rooms');
-const connectionsCol = collection(db, 'connections');
+const doorsCol = collection(db, 'doors');
 const countersRef = doc(db, 'meta', 'counters');
 const roomRef = (id) => doc(roomsCol, String(id));
 
 const toRoom = (snapshot) => {
-  const { id, nama_ruangan, luas, kapasitas_max, occupancy } = snapshot.data();
-  return { id, nama_ruangan, luas, kapasitas_max, occupancy };
+  const d = snapshot.data();
+  return {
+    id: d.id,
+    nama_ruangan: d.nama_ruangan,
+    tipe: d.tipe,
+    lantai_id: d.lantai_id,
+    x: d.x,
+    y: d.y,
+    w: d.w,
+    h: d.h,
+    luas: d.luas,
+    kapasitas_max: d.kapasitas_max,
+    occupancy: d.occupancy,
+  };
 };
 
 export function subscribeRooms(onData, onError) {
@@ -37,12 +52,26 @@ export function subscribeRooms(onData, onError) {
   );
 }
 
-function validateOrThrow(input, options) {
+function validateInfo(input, options) {
   const { value, errors } = validateRoomInput(input, options);
   if (Object.keys(errors).length > 0) {
     throw new AppError('Periksa kembali isian ruangan.', { fieldErrors: errors });
   }
   return value;
+}
+
+function validateGeometry(rect, allRooms) {
+  const snapped = {
+    id: rect.id,
+    lantai_id: rect.lantai_id,
+    x: snapToGrid(rect.x),
+    y: snapToGrid(rect.y),
+    w: snapToGrid(rect.w),
+    h: snapToGrid(rect.h),
+  };
+  const error = geometryError(snapped, allRooms);
+  if (error) throw new AppError(error);
+  return snapped;
 }
 
 async function assertNameAvailable(nama_ruangan, exceptId) {
@@ -56,9 +85,11 @@ async function assertNameAvailable(nama_ruangan, exceptId) {
   }
 }
 
-export async function createRoom(input) {
+/** Buat ruangan baru dari informasi + kotak di denah ({ lantai_id, x, y, w, h }). */
+export async function createRoom(info, rect, allRooms) {
   try {
-    const value = validateOrThrow(input);
+    const value = validateInfo(info);
+    const geometry = validateGeometry(rect, allRooms);
     await assertNameAvailable(value.nama_ruangan);
 
     return await runTransaction(db, async (tx) => {
@@ -69,6 +100,8 @@ export async function createRoom(input) {
         id,
         ...value,
         nama_key: toNameKey(value.nama_ruangan),
+        ...geometry,
+        luas: roomArea(geometry),
         occupancy: 0,
         created_at: serverTimestamp(),
         updated_at: serverTimestamp(),
@@ -80,9 +113,9 @@ export async function createRoom(input) {
   }
 }
 
-export async function updateRoom(room, input) {
+export async function updateRoomInfo(room, info) {
   try {
-    const value = validateOrThrow(input, { currentOccupancy: room.occupancy });
+    const value = validateInfo(info, { currentOccupancy: room.occupancy });
     await assertNameAvailable(value.nama_ruangan, room.id);
     await updateDoc(roomRef(room.id), {
       ...value,
@@ -94,12 +127,32 @@ export async function updateRoom(room, input) {
   }
 }
 
-/** Hapus ruangan beserta semua koneksinya dalam satu batch. */
+/** Pindah/ubah ukuran ruangan. Pintu yang dindingnya hilang tetap tersimpan tapi tidak aktif. */
+export async function updateRoomGeometry(room, rect, allRooms) {
+  try {
+    const geometry = validateGeometry(
+      { ...rect, id: room.id, lantai_id: room.lantai_id },
+      allRooms,
+    );
+    await updateDoc(roomRef(room.id), {
+      x: geometry.x,
+      y: geometry.y,
+      w: geometry.w,
+      h: geometry.h,
+      luas: roomArea(geometry),
+      updated_at: serverTimestamp(),
+    });
+  } catch (error) {
+    throw toAppError(error);
+  }
+}
+
+/** Hapus ruangan beserta semua pintunya dalam satu batch. */
 export async function deleteRoom(roomId) {
   try {
     const [from, to] = await Promise.all([
-      getDocs(query(connectionsCol, where('room_from', '==', roomId))),
-      getDocs(query(connectionsCol, where('room_to', '==', roomId))),
+      getDocs(query(doorsCol, where('room_from', '==', roomId))),
+      getDocs(query(doorsCol, where('room_to', '==', roomId))),
     ]);
     const batch = writeBatch(db);
     [...from.docs, ...to.docs].forEach((d) => batch.delete(d.ref));

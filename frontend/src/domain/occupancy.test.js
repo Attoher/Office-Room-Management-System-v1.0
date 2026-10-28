@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getOccupancyStatus, summarizeRooms } from './occupancy';
-import { toNameKey, validateRoomInput } from './roomValidation';
+import { roomArea, toNameKey, validateRoomInput } from './roomValidation';
 
 const room = (occupancy, kapasitas_max) => ({ occupancy, kapasitas_max });
 
@@ -38,21 +38,25 @@ describe('validateRoomInput', () => {
   it('merapikan isian yang valid', () => {
     const { value, errors } = validateRoomInput({
       nama_ruangan: '  Meeting   Room ',
-      luas: '25.555',
+      tipe: 'lorong',
       kapasitas_max: '8',
     });
     expect(errors).toEqual({});
-    expect(value).toEqual({ nama_ruangan: 'Meeting Room', luas: 25.56, kapasitas_max: 8 });
+    expect(value).toEqual({ nama_ruangan: 'Meeting Room', tipe: 'lorong', kapasitas_max: 8 });
   });
 
   it('menolak isian kosong dan tidak valid', () => {
-    const { errors } = validateRoomInput({ nama_ruangan: ' ', luas: '0', kapasitas_max: '2.5' });
-    expect(Object.keys(errors).sort()).toEqual(['kapasitas_max', 'luas', 'nama_ruangan']);
+    const { errors } = validateRoomInput({
+      nama_ruangan: ' ',
+      tipe: 'gudang',
+      kapasitas_max: '2.5',
+    });
+    expect(Object.keys(errors).sort()).toEqual(['kapasitas_max', 'nama_ruangan', 'tipe']);
   });
 
   it('kapasitas tidak boleh di bawah occupancy saat ini', () => {
     const { errors } = validateRoomInput(
-      { nama_ruangan: 'A', luas: 10, kapasitas_max: 3 },
+      { nama_ruangan: 'A', kapasitas_max: 3 },
       { currentOccupancy: 5 },
     );
     expect(errors.kapasitas_max).toMatch(/saat ini \(5\)/);
@@ -60,5 +64,9 @@ describe('validateRoomInput', () => {
 
   it('toNameKey tidak peka huruf besar dan spasi', () => {
     expect(toNameKey('  Ruang   RAPAT ')).toBe('ruang rapat');
+  });
+
+  it('luas dihitung dari ukuran denah', () => {
+    expect(roomArea({ w: 4.5, h: 3 })).toBe(13.5);
   });
 });

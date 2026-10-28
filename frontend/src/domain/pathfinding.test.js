@@ -1,79 +1,112 @@
 import { describe, expect, it } from 'vitest';
-import { buildAdjacency, findRoutes, planRoute } from './pathfinding';
+import { VERTICAL_COST, buildGraph, kShortestPaths, planRoute } from './pathfinding';
 
-const room = (id, occupancy = 0, kapasitas_max = 10) => ({
+// Denah uji (lantai 1), satuan meter:
+//   [A 0..4][B 4..8][C 8..12]   y 0..4
+//   [D 0..4][E 4..8][F 8..12]   y 4..8
+const room = (id, x, y, extra = {}) => ({
   id,
-  nama_ruangan: `R${id}`,
-  occupancy,
-  kapasitas_max,
+  lantai_id: 1,
+  tipe: 'ruangan',
+  x,
+  y,
+  w: 4,
+  h: 4,
+  occupancy: 0,
+  kapasitas_max: 10,
+  ...extra,
 });
-const link = (room_from, room_to) => ({ room_from, room_to });
+const door = (room_from, room_to) => ({ id: `${room_from}_${room_to}`, room_from, room_to });
 
-describe('findRoutes', () => {
-  it('mengembalikan jalur terpendek lebih dulu', () => {
-    // 1-2-3-4 dan jalan pintas 1-4
-    const rooms = [room(1), room(2), room(3), room(4)];
-    const adjacency = buildAdjacency(rooms, [link(1, 2), link(2, 3), link(3, 4), link(1, 4)]);
-    expect(findRoutes(adjacency, 1, 4)).toEqual([
-      [1, 4],
-      [1, 2, 3, 4],
+const grid = (overrides = {}) => [
+  room(1, 0, 0, overrides[1]),
+  room(2, 4, 0, overrides[2]),
+  room(3, 8, 0, overrides[3]),
+  room(4, 0, 4, overrides[4]),
+  room(5, 4, 4, overrides[5]),
+  room(6, 8, 4, overrides[6]),
+];
+
+describe('buildGraph', () => {
+  it('panjang sisi = tengah ruangan → pintu → tengah ruangan', () => {
+    const graph = buildGraph(grid(), [door(1, 2)]);
+    expect(graph.edges.get(1)).toEqual([{ to: 2, length: 4 }]);
+  });
+
+  it('mengabaikan pintu yang dindingnya sudah tidak ada', () => {
+    const graph = buildGraph(grid(), [door(1, 3)]);
+    expect(graph.edges.get(1)).toEqual([]);
+  });
+
+  it('tangga antar lantai berbobot VERTICAL_COST', () => {
+    const rooms = [
+      room(1, 0, 0, { tipe: 'tangga' }),
+      room(2, 0, 0, { tipe: 'tangga', lantai_id: 2 }),
+    ];
+    expect(buildGraph(rooms, [door(1, 2)]).edges.get(1)).toEqual([
+      { to: 2, length: VERTICAL_COST },
     ]);
   });
 
-  it('tetap menemukan jalur terpendek walau banyak jalur panjang', () => {
-    // Banyak cabang panjang dari 1, jalur langsung 1-99 ditambahkan paling akhir
-    const branch = Array.from({ length: 30 }, (_, i) => i + 2);
-    const rooms = [room(1), room(99), ...branch.map((id) => room(id))];
-    const connections = [
-      ...branch.map((id) => link(1, id)),
-      ...branch.map((id) => link(id, 99)),
-      link(1, 99),
-    ];
-    const routes = findRoutes(buildAdjacency(rooms, connections), 1, 99, { maxRoutes: 5 });
-    expect(routes[0]).toEqual([1, 99]);
-    expect(routes).toHaveLength(5);
+  it('ruangan biasa tidak bisa dihubungkan lintas lantai', () => {
+    const rooms = [room(1, 0, 0), room(2, 0, 0, { lantai_id: 2 })];
+    expect(buildGraph(rooms, [door(1, 2)]).edges.get(1)).toEqual([]);
   });
+});
 
-  it('mengabaikan koneksi ke ruangan yang tidak ada', () => {
-    const adjacency = buildAdjacency([room(1), room(2)], [link(1, 2), link(2, 7)]);
-    expect(adjacency.get(2)).toEqual([1]);
+describe('kShortestPaths', () => {
+  it('mengurutkan jalur dari yang terpendek', () => {
+    const doors = [door(1, 2), door(2, 3), door(1, 4), door(4, 5), door(5, 6), door(3, 6)];
+    const paths = kShortestPaths(buildGraph(grid(), doors), 1, 3, 3);
+    expect(paths[0]).toEqual([1, 2, 3]);
+    expect(paths[1]).toEqual([1, 4, 5, 6, 3]);
+    expect(paths).toHaveLength(2);
   });
 });
 
 describe('planRoute', () => {
-  it('memilih jalur yang tidak melewati ruangan penuh', () => {
-    // 1-2-4 lebih pendek tapi 2 penuh; 1-3-5-4 bebas
-    const rooms = [room(1), room(2, 10), room(3), room(4), room(5)];
-    const plan = planRoute(
-      rooms,
-      [link(1, 2), link(2, 4), link(1, 3), link(3, 5), link(4, 5)],
-      1,
-      4,
-    );
+  const doors = [door(1, 2), door(2, 3), door(1, 4), door(4, 5), door(5, 6), door(3, 6)];
+
+  it('jalur terpendek bila semua ruangan tersedia', () => {
+    const plan = planRoute(grid(), doors, 1, 3);
     expect(plan.status).toBe('aman');
-    expect(plan.bestRoute.roomIds).toEqual([1, 3, 5, 4]);
+    expect(plan.bestRoute.roomIds).toEqual([1, 2, 3]);
+    expect(plan.bestRoute.length).toBe(8);
+  });
+
+  it('memutar bila ruangan di tengah penuh', () => {
+    const plan = planRoute(grid({ 2: { occupancy: 10 } }), doors, 1, 3);
+    expect(plan.status).toBe('aman');
+    expect(plan.bestRoute.roomIds).toEqual([1, 4, 5, 6, 3]);
     expect(plan.routes[1].blockedRoomIds).toEqual([2]);
   });
 
-  it('status penuh bila ruangan tujuan penuh', () => {
-    const plan = planRoute([room(1), room(2, 5, 5)], [link(1, 2)], 1, 2);
+  it('status penuh bila tujuan penuh', () => {
+    const plan = planRoute(grid({ 3: { occupancy: 10 } }), doors, 1, 3);
     expect(plan.status).toBe('penuh');
-    expect(plan.bestRoute.blockedRoomIds).toEqual([2]);
+    expect(plan.bestRoute.blockedRoomIds).toEqual([3]);
   });
 
-  it('ruangan asal yang penuh tidak dianggap menghalangi', () => {
-    const plan = planRoute([room(1, 5, 5), room(2)], [link(1, 2)], 1, 2);
+  it('ruangan asal yang penuh tidak menghalangi', () => {
+    const plan = planRoute(grid({ 1: { occupancy: 10 } }), doors, 1, 3);
     expect(plan.status).toBe('aman');
   });
 
-  it('status tidak-ada-jalur bila ruangan tidak terhubung', () => {
-    const plan = planRoute([room(1), room(2)], [], 1, 2);
+  it('tidak-ada-jalur bila tidak ada pintu yang menyambung', () => {
+    const plan = planRoute(grid(), [door(1, 2)], 1, 6);
     expect(plan).toEqual({ status: 'tidak-ada-jalur', bestRoute: null, routes: [] });
   });
 
-  it('mengutamakan ruangan yang lebih sepi bila panjang jalurnya sama', () => {
-    const rooms = [room(1), room(2, 8), room(3, 1), room(4)];
-    const plan = planRoute(rooms, [link(1, 2), link(2, 4), link(1, 3), link(3, 4)], 1, 4);
-    expect(plan.bestRoute.roomIds).toEqual([1, 3, 4]);
+  it('menghitung perpindahan lantai', () => {
+    const rooms = [
+      room(1, 0, 0),
+      room(2, 4, 0, { tipe: 'tangga' }),
+      room(3, 4, 0, { tipe: 'tangga', lantai_id: 2 }),
+      room(4, 8, 0, { lantai_id: 2 }),
+    ];
+    const plan = planRoute(rooms, [door(1, 2), door(2, 3), door(3, 4)], 1, 4);
+    expect(plan.bestRoute.roomIds).toEqual([1, 2, 3, 4]);
+    expect(plan.bestRoute.floorChanges).toBe(1);
+    expect(plan.bestRoute.length).toBe(4 + VERTICAL_COST + 4);
   });
 });

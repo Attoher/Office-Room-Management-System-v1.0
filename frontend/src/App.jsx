@@ -10,7 +10,7 @@ import ManagementView from './features/management/ManagementView';
 import MonitoringView from './features/monitoring/MonitoringView';
 import { useOfficeData } from './hooks/useOfficeData';
 
-// vis-network cukup besar, jadi halaman jalur baru dimuat saat dibuka
+// Halaman jalur (denah + pencarian rute) baru dimuat saat dibuka
 const PathfindingView = lazy(() => import('./features/pathfinding/PathfindingView'));
 
 const TABS = [
@@ -37,7 +37,7 @@ function Loading({ label }) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState(readTabFromPath);
-  const { rooms, roomsById, connections, status, error } = useOfficeData();
+  const { floors, rooms, roomsById, doors, status, error } = useOfficeData();
 
   useEffect(() => {
     // Path tidak dikenal (termasuk "/") dirapikan ke tab yang ditampilkan
@@ -72,16 +72,17 @@ export default function App() {
       </Card>
     );
   } else if (activeTab === 'monitoring') {
-    content = <MonitoringView rooms={rooms} connections={connections} onNavigate={navigate} />;
+    content = <MonitoringView floors={floors} rooms={rooms} doors={doors} onNavigate={navigate} />;
   } else if (activeTab === 'management') {
-    content = <ManagementView rooms={rooms} connections={connections} />;
+    content = <ManagementView floors={floors} rooms={rooms} roomsById={roomsById} doors={doors} />;
   } else {
     content = (
       <Suspense fallback={<Loading label="Memuat peta ruangan…" />}>
         <PathfindingView
+          floors={floors}
           rooms={rooms}
           roomsById={roomsById}
-          connections={connections}
+          doors={doors}
           onNavigate={navigate}
         />
       </Suspense>
