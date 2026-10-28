@@ -126,6 +126,25 @@ export function offsetFromPoint(wall, point) {
 export const doorSwingInto = (door) => door.swing_into ?? door.room_to;
 
 /**
+ * Sisi engsel dilihat oleh orang yang berjalan melewati pintu ke arah daun pintu membuka:
+ * 'kiri' atau 'kanan'. `hinge` 'start'/'end' adalah ujung celah dengan koordinat kecil/besar.
+ */
+export function doorHingeSide(geometry, intoRoom, hinge) {
+  const { wall, x1, y1, x2, y2 } = geometry;
+  const into = rectCenter(intoRoom);
+  // Arah jalan masuk; di koordinat layar (y ke bawah) tangan kanan = arah jalan diputar +90°
+  const walk =
+    wall.orientation === 'v'
+      ? { x: into.x > wall.coord ? 1 : -1, y: 0 }
+      : { x: 0, y: into.y > wall.coord ? 1 : -1 };
+  const right = { x: -walk.y, y: walk.x };
+  const pivot = hinge === 'end' ? { x: x2, y: y2 } : { x: x1, y: y1 };
+  const mid = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+  const dot = (pivot.x - mid.x) * right.x + (pivot.y - mid.y) * right.y;
+  return dot > 0 ? 'kanan' : 'kiri';
+}
+
+/**
  * Daerah sapuan daun pintu: persegi selebar pintu di sisi ruangan tempat pintu membuka.
  * Dipakai untuk mendeteksi dua daun pintu yang saling bertabrakan.
  */

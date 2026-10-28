@@ -16,6 +16,7 @@ import {
   MIN_DOOR_WALL,
   ROOM_TYPES,
   doorGeometry,
+  doorHingeSide,
   doorPlacementError,
   doorSwingInto,
   findNeighbors,
@@ -301,18 +302,32 @@ export default function RoomInspector({ room, rooms, roomsById, doors, floors, o
 /** Satu pintu: arah buka, engsel, peringatan tabrakan, dan tombol aksinya. */
 function DoorRow({ door, label, room, other, doors, roomsById, busy, run }) {
   const into = doorSwingInto(door) === room.id ? room : other;
+  const geometry = doorGeometry(room, other, door.offset);
+  const side = doorHingeSide(geometry, into, door.hinge);
   const conflict = doorPlacementError(door, doors, roomsById);
   const key = (action) => `${action}-${door.id}`;
   return (
-    <li>
+    <li className="rounded-md bg-slate-50 px-2 py-1.5">
       <div className="flex items-center gap-2 text-xs text-slate-600">
-        <span className="min-w-0 flex-1 truncate">
-          <span className="font-medium text-slate-800">{label}</span> · buka ke {into.nama_ruangan}{' '}
-          · engsel {door.hinge === 'end' ? 'akhir' : 'awal'}
+        <span className="min-w-0 flex-1">
+          <span className="font-medium text-slate-800">{label}</span> · membuka ke{' '}
+          {into.nama_ruangan} · engsel {side}
         </span>
         <Button
           variant="ghost"
           size="icon"
+          icon={Trash2}
+          loading={busy === key('delete')}
+          onClick={() => run(key('delete'), () => deleteDoor(door.id))}
+          className="hover:bg-red-50 hover:text-red-600"
+          title="Hapus pintu"
+          aria-label={`Hapus ${label.toLowerCase()} ke ${other.nama_ruangan}`}
+        />
+      </div>
+      <div className="mt-1 flex flex-wrap gap-1">
+        <Button
+          variant="secondary"
+          size="sm"
           icon={ArrowLeftRight}
           loading={busy === key('swing')}
           onClick={() =>
@@ -325,12 +340,13 @@ function DoorRow({ door, label, room, other, doors, roomsById, busy, run }) {
               ),
             )
           }
-          title="Balik arah buka pintu"
-          aria-label={`Balik arah buka ${label.toLowerCase()} ke ${other.nama_ruangan}`}
-        />
+          title={`Daun pintu membuka ke ${into.id === room.id ? other.nama_ruangan : room.nama_ruangan}`}
+        >
+          Arah buka
+        </Button>
         <Button
-          variant="ghost"
-          size="icon"
+          variant="secondary"
+          size="sm"
           icon={FlipHorizontal2}
           loading={busy === key('hinge')}
           onClick={() =>
@@ -338,21 +354,12 @@ function DoorRow({ door, label, room, other, doors, roomsById, busy, run }) {
               updateDoor(door, { hinge: door.hinge === 'end' ? 'start' : 'end' }, doors, roomsById),
             )
           }
-          title="Pindah engsel ke sisi lain"
-          aria-label={`Pindah engsel ${label.toLowerCase()} ke ${other.nama_ruangan}`}
-        />
-        <Button
-          variant="ghost"
-          size="icon"
-          icon={Trash2}
-          loading={busy === key('delete')}
-          onClick={() => run(key('delete'), () => deleteDoor(door.id))}
-          className="hover:bg-red-50 hover:text-red-600"
-          title="Hapus pintu"
-          aria-label={`Hapus ${label.toLowerCase()} ke ${other.nama_ruangan}`}
-        />
+          title={`Pindah engsel ke ${side === 'kiri' ? 'kanan' : 'kiri'}`}
+        >
+          Kiri ⇄ Kanan
+        </Button>
       </div>
-      {conflict && <p className="mt-0.5 text-xs text-amber-700">{conflict}</p>}
+      {conflict && <p className="mt-1 text-xs text-amber-700">{conflict}</p>}
     </li>
   );
 }

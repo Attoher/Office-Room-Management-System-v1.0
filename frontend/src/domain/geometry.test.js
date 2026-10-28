@@ -7,6 +7,7 @@ import {
   doorPlacementError,
   findFreeDoorOffset,
   doorGeometry,
+  doorHingeSide,
   findNeighbors,
   geometryError,
   offsetFromPoint,
@@ -128,6 +129,17 @@ describe('aturan pintu', () => {
     const offset = findFreeDoorOffset({ room_from: 1, room_to: 3 }, doors, byId);
     expect(offset).not.toBeNull();
     expect(Math.abs(offset - 2)).toBeGreaterThanOrEqual(DOOR_WIDTH + MIN_PIER - 1e-9);
+  });
+
+  it('sisi engsel kiri/kanan dilihat dari arah masuk', () => {
+    // Pintu di dinding x = 4, masuk ke ruangan kanan (berjalan ke timur): kanan = selatan (y besar)
+    const a = room(1, 0, 0, 4, 4);
+    const b = room(2, 4, 0, 4, 4);
+    const geometry = doorGeometry(a, b);
+    expect(doorHingeSide(geometry, b, 'end')).toBe('kanan');
+    expect(doorHingeSide(geometry, b, 'start')).toBe('kiri');
+    // Masuk dari arah sebaliknya, kiri & kanan tertukar
+    expect(doorHingeSide(geometry, a, 'end')).toBe('kiri');
   });
 
   it('bestDoorBetween memilih pintu terdekat', () => {
