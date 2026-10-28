@@ -27,7 +27,7 @@ service cloud.firestore {
         && data.nama_ruangan is string
         && data.nama_ruangan.size() > 0 && data.nama_ruangan.size() <= 60
         && data.nama_key == data.nama_ruangan.lower()
-        && data.tipe in ['ruangan', 'lorong', 'tangga', 'lift']
+        && data.tipe in ['ruangan', 'lorong', 'tangga', 'lift', 'luar']
         && data.lantai_id is int
         && exists(/databases/$(database)/documents/floors/$(string(data.lantai_id)))
         && onGrid(data.x) && onGrid(data.y) && onGrid(data.w) && onGrid(data.h)
@@ -70,31 +70,38 @@ service cloud.firestore {
       allow delete: if true;
     }
 
-    // ID dokumen = "<room_from>_<room_to>" dengan room_from < room_to (satu pintu per pasangan).
-    // Satu lantai: pintu di dinding bersama (offset dalam meter).
-    // Beda lantai: penghubung tangga/lift (offset null).
+    // Pintu antar ruangan (room_from < room_to). Satu pasangan boleh punya beberapa pintu.
+    // Satu lantai: offset (m) di dinding bersama, swing_into = ruangan tempat daun pintu membuka,
+    // hinge = 'start' | 'end'. Beda lantai: penghubung tangga/lift dengan field pintu bernilai null.
+    // Tabrakan antar pintu dicek di aplikasi.
     match /doors/{doorId} {
       allow read, delete: if true;
 
-      allow create: if request.resource.data.keys().hasOnly(['room_from', 'room_to', 'offset', 'created_at'])
+      allow create: if request.resource.data.keys().hasOnly(['room_from', 'room_to', 'offset',
+                                                              'swing_into', 'hinge', 'created_at'])
         && request.resource.data.room_from is int
         && request.resource.data.room_to is int
         && request.resource.data.room_from < request.resource.data.room_to
-        && doorId == string(request.resource.data.room_from) + '_'
-                     + string(request.resource.data.room_to)
         && request.resource.data.created_at == request.time
-        && validDoorEnds(roomDoc(request.resource.data.room_from).data,
-                         roomDoc(request.resource.data.room_to).data,
-                         request.resource.data.offset);
+        && validDoor(request.resource.data,
+                     roomDoc(request.resource.data.room_from).data,
+                     roomDoc(request.resource.data.room_to).data);
 
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offset'])
-        && request.resource.data.offset is number
-        && request.resource.data.offset >= 0 && request.resource.data.offset <= 500;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['offset', 'swing_into', 'hinge'])
+        && validDoor(request.resource.data,
+                     roomDoc(resource.data.room_from).data,
+                     roomDoc(resource.data.room_to).data);
     }
 
-    function validDoorEnds(a, b, offset) {
-      return (a.lantai_id == b.lantai_id && offset is number && offset >= 0 && offset <= 500)
-        || (a.lantai_id != b.lantai_id && offset == null
+    function validDoor(door, a, b) {
+      return (a.lantai_id == b.lantai_id
+              && door.offset is number && door.offset >= 0 && door.offset <= 500
+              && door.get('swing_into', door.room_to) in [door.room_from, door.room_to]
+              && door.get('hinge', 'start') in ['start', 'end'])
+        || (a.lantai_id != b.lantai_id
+            && door.offset == null
+            && door.get('swing_into', null) == null && door.get('hinge', null) == null
             && a.tipe in ['tangga', 'lift'] && b.tipe in ['tangga', 'lift']);
     }
 

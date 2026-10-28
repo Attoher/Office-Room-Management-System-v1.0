@@ -54,6 +54,22 @@ describe('buildGraph', () => {
   });
 });
 
+describe('beberapa pintu per pasangan', () => {
+  it('jarak memakai pintu yang terdekat', () => {
+    // Ruangan lebar 8 m di atas dua ruangan; pintu di ujung kiri dan di tengah
+    const rooms = [room(1, 0, 0, { w: 8 }), room(2, 4, 4)];
+    const doors = [
+      { id: 'kiri', room_from: 1, room_to: 2, offset: 0.55 },
+      { id: 'tengah', room_from: 1, room_to: 2, offset: 2 },
+    ];
+    // Tengah ruangan 1 = (4, 2), ruangan 2 = (6, 6); pintu di dinding y = 4
+    const via = (x) => Math.hypot(x - 4, 2) + Math.hypot(6 - x, 2);
+    const plan = planRoute(rooms, doors, 1, 2);
+    expect(via(4.55)).toBeLessThan(via(6));
+    expect(plan.bestRoute.length).toBeCloseTo(via(4.55));
+  });
+});
+
 describe('kShortestPaths', () => {
   it('mengurutkan jalur dari yang terpendek', () => {
     const doors = [door(1, 2), door(2, 3), door(1, 4), door(4, 5), door(5, 6), door(3, 6)];

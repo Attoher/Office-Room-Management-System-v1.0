@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   DOOR_WIDTH,
+  END_CLEARANCE,
+  MIN_PIER,
+  bestDoorBetween,
+  doorPlacementError,
+  findFreeDoorOffset,
   doorGeometry,
   findNeighbors,
   geometryError,
@@ -65,9 +70,9 @@ describe('doorGeometry', () => {
     expect(door.y2 - door.y1).toBeCloseTo(DOOR_WIDTH);
   });
 
-  it('posisi pintu dibatasi di dalam dinding', () => {
+  it('posisi pintu dibatasi di dalam dinding, berjarak dari ujungnya', () => {
     const door = doorGeometry(room(1, 0, 0, 4, 4), room(2, 4, 0, 4, 4), 99);
-    expect(door.y2).toBeCloseTo(4);
+    expect(door.y2).toBeCloseTo(4 - END_CLEARANCE);
   });
 
   it('null bila dinding bersama terlalu pendek', () => {
@@ -77,6 +82,57 @@ describe('doorGeometry', () => {
   it('offsetFromPoint mengikuti posisi sepanjang dinding', () => {
     const wall = sharedWall(room(1, 0, 0, 4, 4), room(2, 4, 0, 4, 4));
     expect(offsetFromPoint(wall, { x: 4, y: 1 })).toBe(1);
+  });
+});
+
+describe('aturan pintu', () => {
+  // A di kiri, B & C bertumpuk di kanan: dinding A–B (y 0..2) dan A–C (y 2..6) segaris di x = 4
+  const rooms = [room(1, 0, 0, 4, 6), room(2, 4, 0, 4, 2), room(3, 4, 2, 4, 4)];
+  const byId = new Map(rooms.map((r) => [r.id, r]));
+  const door = (id, room_from, room_to, offset, extra = {}) => ({
+    id,
+    room_from,
+    room_to,
+    offset,
+    ...extra,
+  });
+
+  it('pintu yang segaris di sambungan dinding tetap dipisah tiang', () => {
+    // Pintu A–B mentok ke bawah dan pintu A–C mentok ke atas: tiang = 2 × END_CLEARANCE
+    const doors = [door('ab', 1, 2, 99), door('ac', 1, 3, 0)];
+    expect(doorPlacementError(doors[1], doors, byId)).toBeNull();
+    expect(END_CLEARANCE * 2).toBeGreaterThanOrEqual(MIN_PIER);
+  });
+
+  it('menolak dua pintu di dinding yang sama yang terlalu dekat', () => {
+    const doors = [door('ac1', 1, 3, 2), door('ac2', 1, 3, 2.8)];
+    expect(doorPlacementError(doors[1], doors, byId)).toMatch(/Terlalu dekat/);
+  });
+
+  it('menolak daun pintu yang bertabrakan di sudut', () => {
+    // Ruangan sudut: A (0..4, 0..4); B di kanan (x 4), C di bawah (y 4); keduanya membuka ke A
+    const corner = [room(1, 0, 0, 4, 4), room(2, 4, 0, 4, 4), room(3, 0, 4, 4, 4)];
+    const cornerById = new Map(corner.map((r) => [r.id, r]));
+    const doors = [
+      door('ab', 1, 2, 99, { swing_into: 1 }),
+      door('ac', 1, 3, 99, { swing_into: 1 }),
+    ];
+    expect(doorPlacementError(doors[1], doors, cornerById)).toMatch(/bertabrakan/);
+    // Bila salah satu membuka ke arah lain, tidak bertabrakan
+    const flipped = [doors[0], { ...doors[1], swing_into: 3 }];
+    expect(doorPlacementError(flipped[1], flipped, cornerById)).toBeNull();
+  });
+
+  it('pintu baru mencari posisi kosong terdekat dari tengah', () => {
+    const doors = [door('ac1', 1, 3, 2)];
+    const offset = findFreeDoorOffset({ room_from: 1, room_to: 3 }, doors, byId);
+    expect(offset).not.toBeNull();
+    expect(Math.abs(offset - 2)).toBeGreaterThanOrEqual(DOOR_WIDTH + MIN_PIER - 1e-9);
+  });
+
+  it('bestDoorBetween memilih pintu terdekat', () => {
+    const doors = [door('far', 1, 3, 3.4), door('near', 1, 3, 1)];
+    expect(bestDoorBetween(byId.get(1), byId.get(3), doors).door.id).toBe('near');
   });
 });
 

@@ -1,5 +1,13 @@
 import { useMemo, useState } from 'react';
-import { ArrowUpDown, DoorClosed, DoorOpen, Trash2 } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  ArrowUpDown,
+  DoorClosed,
+  DoorOpen,
+  FlipHorizontal2,
+  Plus,
+  Trash2,
+} from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { Field, Input, Select } from '../../components/ui/Field';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -8,10 +16,12 @@ import {
   MIN_DOOR_WALL,
   ROOM_TYPES,
   doorGeometry,
+  doorPlacementError,
+  doorSwingInto,
   findNeighbors,
   isVerticalType,
 } from '../../domain/geometry';
-import { createDoor, deleteDoor, doorId } from '../../services/doorService';
+import { createDoor, deleteDoor, isSamePair, updateDoor } from '../../services/doorService';
 import { deleteRoom, updateRoomGeometry, updateRoomInfo } from '../../services/roomService';
 import RoomInfoForm from './RoomInfoForm';
 
@@ -32,7 +42,6 @@ export default function RoomInspector({ room, rooms, roomsById, doors, floors, o
   const [busy, setBusy] = useState(null);
   const [linkTarget, setLinkTarget] = useState('');
 
-  const doorsById = useMemo(() => new Map(doors.map((d) => [d.id, d])), [doors]);
   const neighbors = useMemo(
     () => findNeighbors(rooms.filter((r) => r.lantai_id === room.lantai_id)).get(room.id) ?? [],
     [rooms, room],
@@ -53,7 +62,7 @@ export default function RoomInspector({ room, rooms, roomsById, doors, floors, o
         (r) =>
           r.lantai_id !== room.lantai_id &&
           isVerticalType(r.tipe) &&
-          !doorsById.has(doorId(room.id, r.id)),
+          !doors.some((d) => isSamePair(d, room.id, r.id)),
       )
     : [];
 
@@ -142,42 +151,54 @@ export default function RoomInspector({ room, rooms, roomsById, doors, floors, o
           <ul className="divide-y divide-slate-100 rounded-lg ring-1 ring-slate-200">
             {neighbors.map(({ roomId, wall }) => {
               const other = roomsById.get(roomId);
-              const id = doorId(room.id, roomId);
-              const hasDoor = doorsById.has(id);
+              const pairDoors = myDoors.filter(
+                (d) => isSamePair(d, room.id, roomId) && doorGeometry(room, other, d.offset),
+              );
               const canDoor = wall.length >= MIN_DOOR_WALL;
+              const addKey = `add-${roomId}`;
               return (
-                <li key={roomId} className="flex items-center gap-3 px-3 py-2 text-sm">
-                  {hasDoor ? (
-                    <DoorOpen className="size-4 shrink-0 text-blue-600" aria-hidden />
-                  ) : (
-                    <DoorClosed className="size-4 shrink-0 text-slate-300" aria-hidden />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-slate-800">{other.nama_ruangan}</p>
-                    <p className="text-xs text-slate-500">
-                      Dinding {formatMeters(wall.length)} · {hasDoor ? 'ada pintu' : 'tanpa pintu'}
-                    </p>
-                  </div>
-                  {hasDoor ? (
+                <li key={roomId} className="px-3 py-2 text-sm">
+                  <div className="flex items-center gap-3">
+                    {pairDoors.length > 0 ? (
+                      <DoorOpen className="size-4 shrink-0 text-blue-600" aria-hidden />
+                    ) : (
+                      <DoorClosed className="size-4 shrink-0 text-slate-300" aria-hidden />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-slate-800">{other.nama_ruangan}</p>
+                      <p className="text-xs text-slate-500">
+                        Dinding {formatMeters(wall.length)} ·{' '}
+                        {pairDoors.length > 0 ? `${pairDoors.length} pintu` : 'tanpa pintu'}
+                      </p>
+                    </div>
                     <Button
                       variant="secondary"
                       size="sm"
-                      loading={busy === id}
-                      onClick={() => run(id, () => deleteDoor(id))}
-                    >
-                      Hapus pintu
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      loading={busy === id}
+                      icon={Plus}
+                      loading={busy === addKey}
                       disabled={!canDoor}
                       title={canDoor ? undefined : `Dinding bersama minimal ${MIN_DOOR_WALL} m`}
-                      onClick={() => run(id, () => createDoor(room, other))}
+                      onClick={() => run(addKey, () => createDoor(room, other, doors, roomsById))}
                     >
-                      Buat pintu
+                      Pintu
                     </Button>
+                  </div>
+                  {pairDoors.length > 0 && (
+                    <ul className="mt-2 space-y-1 pl-7">
+                      {pairDoors.map((door, index) => (
+                        <DoorRow
+                          key={door.id}
+                          door={door}
+                          label={pairDoors.length > 1 ? `Pintu ${index + 1}` : 'Pintu'}
+                          room={room}
+                          other={other}
+                          doors={doors}
+                          roomsById={roomsById}
+                          busy={busy}
+                          run={run}
+                        />
+                      ))}
+                    </ul>
                   )}
                 </li>
               );
@@ -256,7 +277,7 @@ export default function RoomInspector({ room, rooms, roomsById, doors, floors, o
                 loading={busy === 'link'}
                 onClick={() =>
                   run('link', async () => {
-                    await createDoor(room, roomsById.get(Number(linkTarget)));
+                    await createDoor(room, roomsById.get(Number(linkTarget)), doors, roomsById);
                     setLinkTarget('');
                   })
                 }
@@ -274,6 +295,65 @@ export default function RoomInspector({ room, rooms, roomsById, doors, floors, o
         </section>
       )}
     </div>
+  );
+}
+
+/** Satu pintu: arah buka, engsel, peringatan tabrakan, dan tombol aksinya. */
+function DoorRow({ door, label, room, other, doors, roomsById, busy, run }) {
+  const into = doorSwingInto(door) === room.id ? room : other;
+  const conflict = doorPlacementError(door, doors, roomsById);
+  const key = (action) => `${action}-${door.id}`;
+  return (
+    <li>
+      <div className="flex items-center gap-2 text-xs text-slate-600">
+        <span className="min-w-0 flex-1 truncate">
+          <span className="font-medium text-slate-800">{label}</span> · buka ke {into.nama_ruangan}{' '}
+          · engsel {door.hinge === 'end' ? 'akhir' : 'awal'}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          icon={ArrowLeftRight}
+          loading={busy === key('swing')}
+          onClick={() =>
+            run(key('swing'), () =>
+              updateDoor(
+                door,
+                { swing_into: into.id === room.id ? other.id : room.id },
+                doors,
+                roomsById,
+              ),
+            )
+          }
+          title="Balik arah buka pintu"
+          aria-label={`Balik arah buka ${label.toLowerCase()} ke ${other.nama_ruangan}`}
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          icon={FlipHorizontal2}
+          loading={busy === key('hinge')}
+          onClick={() =>
+            run(key('hinge'), () =>
+              updateDoor(door, { hinge: door.hinge === 'end' ? 'start' : 'end' }, doors, roomsById),
+            )
+          }
+          title="Pindah engsel ke sisi lain"
+          aria-label={`Pindah engsel ${label.toLowerCase()} ke ${other.nama_ruangan}`}
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          icon={Trash2}
+          loading={busy === key('delete')}
+          onClick={() => run(key('delete'), () => deleteDoor(door.id))}
+          className="hover:bg-red-50 hover:text-red-600"
+          title="Hapus pintu"
+          aria-label={`Hapus ${label.toLowerCase()} ke ${other.nama_ruangan}`}
+        />
+      </div>
+      {conflict && <p className="mt-0.5 text-xs text-amber-700">{conflict}</p>}
+    </li>
   );
 }
 

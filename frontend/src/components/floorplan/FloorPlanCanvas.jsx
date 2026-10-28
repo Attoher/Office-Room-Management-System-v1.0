@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-import { DOOR_WIDTH, doorGeometry, rectCenter } from '../../domain/geometry';
+import { DOOR_WIDTH, doorGeometry, doorSwingInto, rectCenter } from '../../domain/geometry';
 import { getOccupancyStatus } from '../../domain/occupancy';
 
 // Semua ukuran dalam meter (1 unit SVG = 1 m)
@@ -12,6 +12,14 @@ const ROLE = {
   start: { fill: '#dbeafe', stroke: '#2563eb', label: 'ASAL' },
   target: { fill: '#e2e8f0', stroke: '#0f172a', label: 'TUJUAN' },
 };
+
+const OUTDOOR_EDGE = '#16a34a';
+
+function roomFill(room, status) {
+  if (room.tipe === 'lorong') return '#f8fafc';
+  if (room.tipe === 'luar') return status === 'hijau' ? 'url(#plan-outdoor)' : STATUS_FILL[status];
+  return STATUS_FILL[status];
+}
 
 function truncate(text, width, fontSize) {
   const max = Math.max(3, Math.floor((width - 0.4) / (fontSize * 0.55)));
@@ -59,27 +67,25 @@ function TypeSymbol({ room }) {
   return null;
 }
 
-/** Celah pintu di dinding + daun pintu yang membuka ke ruangan `room_to`. */
-function Door({ geometry, swingInto }) {
+/** Celah pintu di dinding + daun pintu yang berengsel di `hinge` dan membuka ke `swingInto`. */
+function Door({ geometry, swingInto, hinge }) {
   const { wall, x1, y1, x2, y2 } = geometry;
   const into = rectCenter(swingInto);
-  let leaf;
-  let arc;
-  if (wall.orientation === 'v') {
-    const dir = into.x > wall.coord ? 1 : -1;
-    const tip = { x: x1 + dir * DOOR_WIDTH, y: y1 };
-    leaf = { x2: tip.x, y2: tip.y };
-    arc = `M ${tip.x} ${tip.y} A ${DOOR_WIDTH} ${DOOR_WIDTH} 0 0 ${dir > 0 ? 1 : 0} ${x2} ${y2}`;
-  } else {
-    const dir = into.y > wall.coord ? 1 : -1;
-    const tip = { x: x1, y: y1 + dir * DOOR_WIDTH };
-    leaf = { x2: tip.x, y2: tip.y };
-    arc = `M ${tip.x} ${tip.y} A ${DOOR_WIDTH} ${DOOR_WIDTH} 0 0 ${dir > 0 ? 0 : 1} ${x2} ${y2}`;
-  }
+  const pivot = hinge === 'end' ? { x: x2, y: y2 } : { x: x1, y: y1 };
+  const free = hinge === 'end' ? { x: x1, y: y1 } : { x: x2, y: y2 };
+  const normal =
+    wall.orientation === 'v'
+      ? { x: into.x > wall.coord ? 1 : -1, y: 0 }
+      : { x: 0, y: into.y > wall.coord ? 1 : -1 };
+  const tip = { x: pivot.x + normal.x * DOOR_WIDTH, y: pivot.y + normal.y * DOOR_WIDTH };
+  // Arah sapuan busur dari ujung daun pintu ke ujung celah yang bebas (searah jarum jam di SVG
+  // bila hasil kali silangnya positif)
+  const cross = (tip.x - pivot.x) * (free.y - pivot.y) - (tip.y - pivot.y) * (free.x - pivot.x);
+  const arc = `M ${tip.x} ${tip.y} A ${DOOR_WIDTH} ${DOOR_WIDTH} 0 0 ${cross > 0 ? 1 : 0} ${free.x} ${free.y}`;
   return (
     <g pointerEvents="none">
       <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#ffffff" strokeWidth={WALL_WIDTH + 0.06} />
-      <line x1={x1} y1={y1} {...leaf} stroke="#64748b" strokeWidth="0.05" />
+      <line x1={pivot.x} y1={pivot.y} x2={tip.x} y2={tip.y} stroke="#64748b" strokeWidth="0.05" />
       <path d={arc} fill="none" stroke="#94a3b8" strokeWidth="0.03" strokeDasharray="0.08 0.06" />
     </g>
   );
@@ -113,7 +119,7 @@ const FloorPlanCanvas = forwardRef(function FloorPlanCanvas(
       const b = roomsById.get(door.room_to);
       if (!a || !b || a.lantai_id !== b.lantai_id) return null;
       const geometry = doorGeometry(a, b, door.offset);
-      return geometry && { door, geometry, swingInto: b };
+      return geometry && { door, geometry, swingInto: roomsById.get(doorSwingInto(door)) };
     })
     .filter(Boolean);
 
@@ -135,98 +141,109 @@ const FloorPlanCanvas = forwardRef(function FloorPlanCanvas(
           <rect width="5" height="5" fill="url(#plan-grid-minor)" />
           <path d="M 5 0 L 0 0 0 5" fill="none" stroke="#e2e8f0" strokeWidth="0.04" />
         </pattern>
+        {/* Rumput untuk area luar */}
+        <pattern id="plan-outdoor" width="0.6" height="0.6" patternUnits="userSpaceOnUse">
+          <rect width="0.6" height="0.6" fill="#f0fdf4" />
+          <circle cx="0.15" cy="0.15" r="0.04" fill="#86efac" />
+          <circle cx="0.45" cy="0.45" r="0.04" fill="#86efac" />
+        </pattern>
       </defs>
       <rect x={box.x} y={box.y} width={box.w} height={box.h} fill="url(#plan-grid)" />
 
-      {rooms.map((room) => {
-        const status = getOccupancyStatus(room);
-        const role = room.id === startId ? ROLE.start : room.id === targetId ? ROLE.target : null;
-        const selected = room.id === selectedId;
-        const c = rectCenter(room);
-        const nameSize = Math.min(0.5, Math.max(0.3, room.w / 9));
-        const vertical = verticalLabels.get(room.id);
-        return (
-          <g
-            key={room.id}
-            onPointerDown={
-              onRoomPointerDown ? (event) => onRoomPointerDown(event, room) : undefined
-            }
-            style={{ cursor: onRoomPointerDown ? 'pointer' : 'default' }}
-          >
-            <title>{`${room.nama_ruangan} · ${room.occupancy}/${room.kapasitas_max} orang · ${room.luas} m²`}</title>
-            <rect
-              x={room.x}
-              y={room.y}
-              width={room.w}
-              height={room.h}
-              fill={role?.fill ?? (room.tipe === 'lorong' ? '#f8fafc' : STATUS_FILL[status])}
-            />
-            <TypeSymbol room={room} />
-            <rect
-              x={room.x}
-              y={room.y}
-              width={room.w}
-              height={room.h}
-              fill="none"
-              stroke={role?.stroke ?? WALL}
-              strokeWidth={role ? WALL_WIDTH * 1.6 : WALL_WIDTH}
-            />
-            {selected && (
+      {/* Area luar digambar lebih dulu agar batas putus-putusnya tidak menimpa dinding gedung */}
+      {[...rooms]
+        .sort((a, b) => Number(b.tipe === 'luar') - Number(a.tipe === 'luar'))
+        .map((room) => {
+          const status = getOccupancyStatus(room);
+          const role = room.id === startId ? ROLE.start : room.id === targetId ? ROLE.target : null;
+          const selected = room.id === selectedId;
+          const c = rectCenter(room);
+          const nameSize = Math.min(0.5, Math.max(0.3, room.w / 9));
+          const vertical = verticalLabels.get(room.id);
+          return (
+            <g
+              key={room.id}
+              onPointerDown={
+                onRoomPointerDown ? (event) => onRoomPointerDown(event, room) : undefined
+              }
+              style={{ cursor: onRoomPointerDown ? 'pointer' : 'default' }}
+            >
+              <title>{`${room.nama_ruangan} · ${room.occupancy}/${room.kapasitas_max} orang · ${room.luas} m²`}</title>
               <rect
-                x={room.x + 0.12}
-                y={room.y + 0.12}
-                width={room.w - 0.24}
-                height={room.h - 0.24}
-                fill="none"
-                stroke="#2563eb"
-                strokeWidth="0.08"
-                strokeDasharray="0.25 0.15"
-                pointerEvents="none"
+                x={room.x}
+                y={room.y}
+                width={room.w}
+                height={room.h}
+                fill={role?.fill ?? roomFill(room, status)}
               />
-            )}
-            <g pointerEvents="none" fontFamily={FONT} textAnchor="middle">
-              {role && (
+              <TypeSymbol room={room} />
+              {/* Area luar tidak berdinding: batasnya digambar putus-putus */}
+              <rect
+                x={room.x}
+                y={room.y}
+                width={room.w}
+                height={room.h}
+                fill="none"
+                stroke={role?.stroke ?? (room.tipe === 'luar' ? OUTDOOR_EDGE : WALL)}
+                strokeWidth={role ? WALL_WIDTH * 1.6 : room.tipe === 'luar' ? 0.06 : WALL_WIDTH}
+                strokeDasharray={room.tipe === 'luar' && !role ? '0.3 0.2' : undefined}
+              />
+              {selected && (
+                <rect
+                  x={room.x + 0.12}
+                  y={room.y + 0.12}
+                  width={room.w - 0.24}
+                  height={room.h - 0.24}
+                  fill="none"
+                  stroke="#2563eb"
+                  strokeWidth="0.08"
+                  strokeDasharray="0.25 0.15"
+                  pointerEvents="none"
+                />
+              )}
+              <g pointerEvents="none" fontFamily={FONT} textAnchor="middle">
+                {role && (
+                  <text
+                    x={c.x}
+                    y={room.y + 0.55}
+                    fontSize="0.3"
+                    fontWeight="800"
+                    fill={role.stroke}
+                    letterSpacing="0.04"
+                  >
+                    {role.label}
+                  </text>
+                )}
+                <text x={c.x} y={c.y - 0.05} fontSize={nameSize} fontWeight="700" fill="#0f172a">
+                  {truncate(room.nama_ruangan, room.w, nameSize)}
+                </text>
                 <text
                   x={c.x}
-                  y={room.y + 0.55}
-                  fontSize="0.3"
-                  fontWeight="800"
-                  fill={role.stroke}
-                  letterSpacing="0.04"
+                  y={c.y + nameSize + 0.05}
+                  fontSize={nameSize * 0.78}
+                  fontWeight="600"
+                  fill={STATUS_TEXT[status]}
                 >
-                  {role.label}
+                  {room.occupancy}/{room.kapasitas_max} · {room.luas} m²
                 </text>
-              )}
-              <text x={c.x} y={c.y - 0.05} fontSize={nameSize} fontWeight="700" fill="#0f172a">
-                {truncate(room.nama_ruangan, room.w, nameSize)}
-              </text>
-              <text
-                x={c.x}
-                y={c.y + nameSize + 0.05}
-                fontSize={nameSize * 0.78}
-                fontWeight="600"
-                fill={STATUS_TEXT[status]}
-              >
-                {room.occupancy}/{room.kapasitas_max} · {room.luas} m²
-              </text>
-              {vertical && (
-                <text
-                  x={c.x}
-                  y={room.y + room.h - 0.35}
-                  fontSize="0.28"
-                  fontWeight="700"
-                  fill="#475569"
-                >
-                  {vertical}
-                </text>
-              )}
+                {vertical && (
+                  <text
+                    x={c.x}
+                    y={room.y + room.h - 0.35}
+                    fontSize="0.28"
+                    fontWeight="700"
+                    fill="#475569"
+                  >
+                    {vertical}
+                  </text>
+                )}
+              </g>
             </g>
-          </g>
-        );
-      })}
+          );
+        })}
 
       {doorShapes.map(({ door, geometry, swingInto }) => (
-        <Door key={door.id} geometry={geometry} swingInto={swingInto} />
+        <Door key={door.id} geometry={geometry} swingInto={swingInto} hinge={door.hinge} />
       ))}
 
       {routeSegments.map((points, index) => (

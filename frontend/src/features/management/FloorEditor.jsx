@@ -13,7 +13,7 @@ import {
   planBounds,
   snapToGrid,
 } from '../../domain/geometry';
-import { moveDoor } from '../../services/doorService';
+import { updateDoor } from '../../services/doorService';
 import { createRoom, updateRoomGeometry } from '../../services/roomService';
 import RoomInfoForm from './RoomInfoForm';
 
@@ -180,7 +180,8 @@ export default function FloorEditor({ floorId, rooms, roomsById, doors, selected
     setDrag({ ...current, committing: true });
     try {
       if (current.kind === 'door') {
-        await moveDoor(current.doorId, current.offset);
+        const door = doors.find((d) => d.id === current.doorId);
+        await updateDoor(door, { offset: current.offset }, doors, roomsById);
       } else {
         const room = roomsById.get(current.roomId);
         await updateRoomGeometry(room, current.rect, rooms);

@@ -11,6 +11,7 @@ const FLOORS = [
   {
     nama: 'Lantai 1',
     rooms: [
+      ['Taman Depan', 'luar', 0, -5, 8, 5, 30, 3],
       ['Lobby', 'ruangan', 0, 0, 8, 6, 20, 6],
       ['Ruang Tamu VIP', 'ruangan', 0, 6, 8, 4, 6, 2],
       ['Lorong Lantai 1', 'lorong', 8, 4, 14, 2, 15, 3],
@@ -23,6 +24,7 @@ const FLOORS = [
       ['Lift Lantai 1', 'lift', 18, 6, 2, 3, 8, 0],
     ],
     doors: [
+      ['Taman Depan', 'Lobby'],
       ['Lobby', 'Lorong Lantai 1'],
       ['Lobby', 'Ruang Tamu VIP'],
       ['Lorong Lantai 1', 'Ruang Rapat A'],
@@ -81,6 +83,8 @@ const existingFloors = (await getDocsFromServer(collection(db, 'floors'))).docs.
 );
 
 const rooms = [];
+const doors = [];
+const roomsById = () => new Map(rooms.map((room) => [room.id, room]));
 const byName = (name) => rooms.find((room) => room.nama_ruangan === name);
 
 for (const floor of FLOORS) {
@@ -98,13 +102,13 @@ for (const floor of FLOORS) {
   }
 
   for (const [a, b] of floor.doors) {
-    await createDoor(byName(a), byName(b));
+    doors.push(await createDoor(byName(a), byName(b), doors, roomsById()));
     console.log(`  pintu ${a} ↔ ${b}`);
   }
 }
 
 for (const [a, b] of VERTICAL_LINKS) {
-  await createDoor(byName(a), byName(b));
+  doors.push(await createDoor(byName(a), byName(b), doors, roomsById()));
   console.log(`penghubung ${a} ↕ ${b}`);
 }
 
