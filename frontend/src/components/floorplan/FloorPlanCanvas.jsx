@@ -113,11 +113,13 @@ const FloorPlanCanvas = forwardRef(function FloorPlanCanvas(
   },
   ref,
 ) {
+  // Hanya pintu yang kedua ruangannya ada di lantai yang sedang digambar
+  const shownRoomIds = new Set(rooms.map((room) => room.id));
   const doorShapes = doors
     .map((door) => {
+      if (!shownRoomIds.has(door.room_from) || !shownRoomIds.has(door.room_to)) return null;
       const a = roomsById.get(door.room_from);
       const b = roomsById.get(door.room_to);
-      if (!a || !b || a.lantai_id !== b.lantai_id) return null;
       const geometry = doorGeometry(a, b, door.offset);
       return geometry && { door, geometry, swingInto: roomsById.get(doorSwingInto(door)) };
     })
