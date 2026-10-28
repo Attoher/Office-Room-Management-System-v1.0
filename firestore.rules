@@ -1,27 +1,65 @@
 rules_version = '2';
+
+// Aplikasi berjalan tanpa login, jadi rules berfungsi sebagai validasi data:
+// bentuk dokumen, rentang nilai, dan konsistensi antar dokumen.
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Tanpa login: siapa pun yang membuka aplikasi bisa membaca dan mengubah data.
-    match /rooms/{roomId} {
-      allow read, delete: if true;
-      allow create, update: if request.resource.data.id is int
-        && request.resource.data.nama_ruangan is string
-        && request.resource.data.nama_ruangan.size() > 0
-        && request.resource.data.luas is number && request.resource.data.luas > 0
-        && request.resource.data.kapasitas_max is int && request.resource.data.kapasitas_max > 0
-        && request.resource.data.occupancy is int && request.resource.data.occupancy >= 0;
+
+    function validRoom(data, roomId) {
+      return data.keys().hasOnly(['id', 'nama_ruangan', 'nama_key', 'luas', 'kapasitas_max',
+                                  'occupancy', 'created_at', 'updated_at'])
+        && data.id is int && string(data.id) == roomId
+        && data.nama_ruangan is string
+        && data.nama_ruangan.size() > 0 && data.nama_ruangan.size() <= 60
+        && data.nama_key == data.nama_ruangan.lower()
+        && data.luas is number && data.luas > 0 && data.luas <= 100000
+        && data.kapasitas_max is int && data.kapasitas_max > 0 && data.kapasitas_max <= 1000
+        && data.occupancy is int && data.occupancy >= 0 && data.occupancy <= data.kapasitas_max
+        && data.updated_at == request.time;
     }
 
+    match /rooms/{roomId} {
+      allow read: if true;
+
+      // ID baru harus sama dengan counter yang dinaikkan dalam transaksi yang sama
+      allow create: if validRoom(request.resource.data, roomId)
+        && request.resource.data.occupancy == 0
+        && request.resource.data.created_at == request.time
+        && getAfter(/databases/$(database)/documents/meta/counters).data.rooms
+           == request.resource.data.id;
+
+      allow update: if validRoom(request.resource.data, roomId)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.created_at == resource.data.created_at;
+
+      allow delete: if true;
+    }
+
+    // ID dokumen = "<room_from>_<room_to>" dengan room_from < room_to (satu koneksi per pasangan)
     match /connections/{connectionId} {
       allow read, delete: if true;
-      allow create: if request.resource.data.room_from is int
+
+      allow create: if request.resource.data.keys().hasOnly(['room_from', 'room_to', 'created_at'])
+        && request.resource.data.room_from is int
         && request.resource.data.room_to is int
-        && request.resource.data.room_from < request.resource.data.room_to;
+        && request.resource.data.room_from < request.resource.data.room_to
+        && connectionId == string(request.resource.data.room_from) + '_'
+                           + string(request.resource.data.room_to)
+        && request.resource.data.created_at == request.time
+        && exists(/databases/$(database)/documents/rooms/$(string(request.resource.data.room_from)))
+        && exists(/databases/$(database)/documents/rooms/$(string(request.resource.data.room_to)));
+
       allow update: if false;
     }
 
+    // Counter ID ruangan hanya boleh naik satu per satu
     match /meta/counters {
-      allow read, write: if true;
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['rooms'])
+        && request.resource.data.rooms == 1;
+      allow update: if request.resource.data.keys().hasOnly(['rooms'])
+        && request.resource.data.rooms == resource.data.get('rooms', 0) + 1;
+      allow delete: if false;
     }
   }
 }
