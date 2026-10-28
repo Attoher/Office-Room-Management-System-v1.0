@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Tanpa login: siapa pun yang membuka aplikasi bisa membaca dan mengubah data.
+    match /rooms/{roomId} {
+      allow read, delete: if true;
+      allow create, update: if request.resource.data.id is int
+        && request.resource.data.nama_ruangan is string
+        && request.resource.data.nama_ruangan.size() > 0
+        && request.resource.data.luas is number && request.resource.data.luas > 0
+        && request.resource.data.kapasitas_max is int && request.resource.data.kapasitas_max > 0
+        && request.resource.data.occupancy is int && request.resource.data.occupancy >= 0;
+    }
+
+    match /connections/{connectionId} {
+      allow read, delete: if true;
+      allow create: if request.resource.data.room_from is int
+        && request.resource.data.room_to is int
+        && request.resource.data.room_from < request.resource.data.room_to;
+      allow update: if false;
+    }
+
+    match /meta/counters {
+      allow read, write: if true;
+    }
+  }
+}

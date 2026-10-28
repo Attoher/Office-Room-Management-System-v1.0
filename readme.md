@@ -10,6 +10,22 @@ Sistem manajemen ruangan kantor cerdas dengan fitur monitoring occupancy real-ti
 
 <img width="1919" height="965" alt="image" src="https://github.com/user-attachments/assets/3c756e99-f270-4ea2-96db-7ddf1cf431fc" />
 
+## 🔥 Database: Firebase Cloud Firestore
+
+Data sekarang disimpan di **Cloud Firestore** (project `roomofficemanagement`) dan diakses langsung dari frontend. Backend Express + PostgreSQL (`backend/`, `database/`) tidak lagi dipakai oleh frontend.
+
+- Konfigurasi Firebase: `frontend/src/services/firebase.js`
+- Akses data (rooms, connections, stats): `frontend/src/services/api.js`
+- Algoritma pathfinding (dipindah dari backend): `frontend/src/services/pathfinding.js`
+- Security rules: `firestore.rules` (salin ke Firebase Console → Firestore → Rules → Publish)
+
+Struktur koleksi:
+- `rooms/{id}`: `id`, `nama_ruangan`, `luas`, `kapasitas_max`, `occupancy`, `created_at`, `updated_at`
+- `connections/{id}`: `id`, `room_from`, `room_to`, `created_at` (`room_from` selalu ID terkecil)
+- `meta/counters`: penghitung ID numerik untuk `rooms` dan `connections`
+
+Menjalankan: `cd frontend && npm install && npm run dev`. Catatan: tanpa login, siapa pun yang membuka aplikasi bisa mengubah data.
+
 ## 🎉 What's New in v1.0 - FIXED & ENHANCED
 
 ### 🐛 **Bug Fixes & Improvements**

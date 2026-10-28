@@ -18,7 +18,7 @@ function App() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Test koneksi backend - FIXED
+  // Test koneksi Firestore
   const testBackendConnection = async () => {
     try {
       setConnectionStatus('checking');
@@ -46,7 +46,7 @@ function App() {
       
       const isConnected = await testBackendConnection();
       if (!isConnected) {
-        throw new Error('Tidak dapat terhubung ke server backend');
+        throw new Error('Tidak dapat terhubung ke database Firebase');
       }
 
       const [roomsResponse, connectionsResponse] = await Promise.all([
@@ -70,7 +70,7 @@ function App() {
         return;
       }
       
-      setError('Gagal memuat data. Pastikan backend server berjalan di port 3000.');
+      setError('Gagal memuat data. Periksa koneksi internet dan Firestore rules.');
     } finally {
       setLoading(false);
     }
