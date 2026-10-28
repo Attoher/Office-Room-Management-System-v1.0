@@ -97,10 +97,11 @@ export async function createRoom(info, rect, allRooms) {
       const id = (counters.data()?.rooms ?? 0) + 1;
       tx.set(countersRef, { rooms: id }, { merge: true });
       tx.set(roomRef(id), {
-        id,
         ...value,
         nama_key: toNameKey(value.nama_ruangan),
         ...geometry,
+        // id ditulis setelah geometry, yang membawa id: undefined untuk ruangan baru
+        id,
         luas: roomArea(geometry),
         occupancy: 0,
         created_at: serverTimestamp(),

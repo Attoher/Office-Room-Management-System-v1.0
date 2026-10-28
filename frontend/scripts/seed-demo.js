@@ -75,11 +75,17 @@ if (!existing.empty) {
   process.exit(1);
 }
 
+// Lantai yang sudah ada (mis. dari percobaan sebelumnya) dipakai ulang berdasarkan nama
+const existingFloors = (await getDocsFromServer(collection(db, 'floors'))).docs.map((d) =>
+  d.data(),
+);
+
 const rooms = [];
 const byName = (name) => rooms.find((room) => room.nama_ruangan === name);
 
 for (const floor of FLOORS) {
-  const lantai_id = await createFloor(floor.nama);
+  const lantai_id =
+    existingFloors.find((f) => f.nama === floor.nama)?.id ?? (await createFloor(floor.nama));
   console.log(`${floor.nama} (id ${lantai_id})`);
 
   for (const [nama_ruangan, tipe, x, y, w, h, kapasitas_max, occupancy] of floor.rooms) {

@@ -58,7 +58,7 @@ export function isRoomFull(room) {
 }
 
 export function formatPercent(value) {
-  return `${value.toFixed(1)}%`;
+  return `${value.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
 
 export function summarizeRooms(rooms) {

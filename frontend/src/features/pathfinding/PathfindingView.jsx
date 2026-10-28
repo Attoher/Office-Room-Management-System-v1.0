@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDownUp, Download, Navigation, Route, X, ZoomIn, ZoomOut } from 'lucide-react';
 import FloorPlanCanvas from '../../components/floorplan/FloorPlanCanvas';
 import Button from '../../components/ui/Button';
@@ -11,6 +11,12 @@ import FloorTabs from '../management/FloorTabs';
 import RouteResult from './RouteResult';
 
 const ZOOM_STEPS = [1, 1.5, 2, 3];
+
+// Pilihan asal/tujuan disimpan di URL (?asal=ID&tujuan=ID) supaya jalur bisa dibagikan
+function readRouteParam(name) {
+  const value = Number(new URLSearchParams(window.location.search).get(name));
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
 const PX_PER_METER = 40;
 
 function exportSvgAsPng(svg, box, filename) {
@@ -34,10 +40,12 @@ function exportSvgAsPng(svg, box, filename) {
 
 export default function PathfindingView({ floors, rooms, roomsById, doors, onNavigate }) {
   const svgRef = useRef(null);
-  const [startId, setStartId] = useState(null);
-  const [targetId, setTargetId] = useState(null);
+  const [startId, setStartId] = useState(() => readRouteParam('asal'));
+  const [targetId, setTargetId] = useState(() => readRouteParam('tujuan'));
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [floorChoice, setFloorChoice] = useState(null);
+  const [floorChoice, setFloorChoice] = useState(
+    () => roomsById.get(readRouteParam('asal'))?.lantai_id ?? null,
+  );
   const [zoomIndex, setZoomIndex] = useState(0);
 
   const floorId = floors.some((f) => f.id === floorChoice) ? floorChoice : (floors[0]?.id ?? null);
@@ -74,6 +82,14 @@ export default function PathfindingView({ floors, rooms, roomsById, doors, onNav
   const floorRooms = rooms.filter((room) => room.lantai_id === floorId);
   const box = planBounds(floorRooms, 1.5);
   const routeFloors = [...segments.keys()];
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (startId) params.set('asal', startId);
+    if (targetId) params.set('tujuan', targetId);
+    const query = params.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+  }, [startId, targetId]);
 
   const chooseStart = (id) => {
     setStartId(id);
