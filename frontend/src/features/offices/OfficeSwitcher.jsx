@@ -14,7 +14,9 @@ function summaryText(summary) {
 /** Pemilih kantor di header + dialog untuk menambah, mengubah, dan menghapus kantor. */
 export default function OfficeSwitcher({ offices, floors, office, summaries, onSelect }) {
   const [open, setOpen] = useState(false);
+  const toast = useToast();
   const [managing, setManaging] = useState(false);
+  const [adding, setAdding] = useState(false);
   const rootRef = useRef(null);
 
   // Tutup daftar saat klik di luar atau tekan Escape
@@ -83,20 +85,46 @@ export default function OfficeSwitcher({ offices, floors, office, summaries, onS
             ))}
           </ul>
           {!offices.some((o) => o.virtual) && (
-            <button
-              type="button"
-              onClick={() => {
-                setManaging(true);
-                setOpen(false);
-              }}
-              className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              <Settings className="size-4 text-slate-500" aria-hidden />
-              Kelola kantor
-            </button>
+            <div className="border-t border-slate-100 py-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setAdding(true);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50"
+              >
+                <Plus className="size-4" aria-hidden />
+                Tambah kantor baru
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setManaging(true);
+                  setOpen(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Settings className="size-4 text-slate-500" aria-hidden />
+                Kelola kantor
+              </button>
+            </div>
           )}
         </div>
       )}
+
+      <Modal open={adding} title="Tambah kantor baru" onClose={() => setAdding(false)}>
+        <OfficeForm
+          submitLabel="Tambah kantor"
+          onCancel={() => setAdding(false)}
+          onSubmit={async (values) => {
+            const id = await createOffice(values);
+            toast.success(`${values.nama.trim()} ditambahkan dan dibuka.`);
+            setAdding(false);
+            onSelect(id);
+          }}
+        />
+      </Modal>
 
       <Modal open={managing} title="Kelola kantor" size="lg" onClose={() => setManaging(false)}>
         <OfficeManager

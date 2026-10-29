@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 const MODAL_WIDTHS = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-3xl' };
@@ -25,7 +26,9 @@ export default function Modal({ open, title, onClose, children, footer, size = '
 
   if (!open) return null;
 
-  return (
+  // Dirender langsung ke <body>: induk dengan transform/backdrop-filter (mis. header) akan
+  // mengurung elemen position: fixed sehingga modal terpotong
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
       <div className="absolute inset-0 bg-slate-900/50" onClick={onClose} aria-hidden />
       <div
@@ -53,6 +56,7 @@ export default function Modal({ open, title, onClose, children, footer, size = '
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
