@@ -1,4 +1,4 @@
-import { doorGeometry, isVerticalType, rectCenter } from './geometry';
+import { doorGeometry, doorWidth, isVerticalType, rectCenter } from './geometry';
 import { getOccupancyRatio, isRoomFull } from './occupancy';
 
 /** Biaya pindah lantai lewat tangga/lift, setara meter jalan kaki. */
@@ -28,7 +28,7 @@ export function buildGraph(rooms, doors) {
       if (!isVerticalType(a.tipe) || !isVerticalType(b.tipe)) continue;
       length = VERTICAL_COST;
     } else {
-      const geometry = doorGeometry(a, b, door.offset);
+      const geometry = doorGeometry(a, b, door.offset, doorWidth(door));
       if (!geometry) continue;
       length = distance(rectCenter(a), geometry.point) + distance(geometry.point, rectCenter(b));
     }

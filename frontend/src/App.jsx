@@ -37,7 +37,7 @@ function Loading({ label }) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState(readTabFromPath);
-  const { floors, rooms, roomsById, doors, status, error } = useOfficeData();
+  const { floors, rooms, roomsById, doors, elements, status, error } = useOfficeData();
 
   useEffect(() => {
     // Path tidak dikenal (termasuk "/") dirapikan ke tab yang ditampilkan
@@ -74,7 +74,15 @@ export default function App() {
   } else if (activeTab === 'monitoring') {
     content = <MonitoringView floors={floors} rooms={rooms} doors={doors} onNavigate={navigate} />;
   } else if (activeTab === 'management') {
-    content = <ManagementView floors={floors} rooms={rooms} roomsById={roomsById} doors={doors} />;
+    content = (
+      <ManagementView
+        floors={floors}
+        rooms={rooms}
+        roomsById={roomsById}
+        doors={doors}
+        elements={elements}
+      />
+    );
   } else {
     content = (
       <Suspense fallback={<Loading label="Memuat peta ruangan…" />}>
@@ -83,6 +91,7 @@ export default function App() {
           rooms={rooms}
           roomsById={roomsById}
           doors={doors}
+          elements={elements}
           onNavigate={navigate}
         />
       </Suspense>

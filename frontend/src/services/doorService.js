@@ -8,7 +8,8 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import {
-  MIN_DOOR_WALL,
+  doorWidth,
+  minDoorWall,
   doorPlacementError,
   findFreeDoorOffset,
   isVerticalType,
@@ -17,7 +18,8 @@ import {
 import { db } from './firebase';
 import { AppError, toAppError } from './errors';
 
-// doors/{id}: { room_from, room_to, offset, swing_into, hinge, created_at }
+// doors/{id}: { room_from, room_to, jenis, offset, swing_into, hinge, created_at }
+// jenis: 'tunggal' | 'ganda' | 'geser' | 'bukaan' (lebar mengikuti DOOR_TYPES)
 // - satu lantai: pintu di dinding bersama; boleh lebih dari satu pintu per pasangan ruangan.
 //   offset = jarak (m) dari awal dinding ke tengah pintu, swing_into = ruangan tempat daun
 //   pintu membuka, hinge = 'start' | 'end' (engsel di ujung awal/akhir celah pintu)
@@ -42,6 +44,7 @@ export function subscribeDoors(onData, onError) {
             offset: data.offset ?? null,
             swing_into: data.swing_into ?? null,
             hinge: data.hinge ?? 'start',
+            jenis: data.jenis ?? 'tunggal',
           };
         }),
       ),
@@ -53,7 +56,7 @@ export function subscribeDoors(onData, onError) {
  * Pintu baru antara dua ruangan. Satu lantai: ditempatkan di posisi kosong terdekat dari tengah
  * dinding bersama. Beda lantai: penghubung tangga/lift.
  */
-export async function createDoor(roomA, roomB, doors, roomsById) {
+export async function createDoor(roomA, roomB, doors, roomsById, jenis = 'tunggal') {
   if (roomA.id === roomB.id) throw new AppError('Pilih dua ruangan yang berbeda.');
   const room_from = Math.min(roomA.id, roomB.id);
   const room_to = Math.max(roomA.id, roomB.id);
@@ -61,12 +64,13 @@ export async function createDoor(roomA, roomB, doors, roomsById) {
 
   if (roomA.lantai_id === roomB.lantai_id) {
     const wall = sharedWall(roomA, roomB);
-    if (!wall || wall.length < MIN_DOOR_WALL) {
+    const minimum = minDoorWall(doorWidth({ jenis }));
+    if (!wall || wall.length < minimum) {
       throw new AppError(
-        `${roomA.nama_ruangan} dan ${roomB.nama_ruangan} harus berbagi dinding minimal ${MIN_DOOR_WALL} m.`,
+        `${roomA.nama_ruangan} dan ${roomB.nama_ruangan} harus berbagi dinding minimal ${minimum} m.`,
       );
     }
-    const draft = { room_from, room_to, swing_into: room_to, hinge: 'start' };
+    const draft = { room_from, room_to, jenis, swing_into: room_to, hinge: 'start' };
     const offset = findFreeDoorOffset(draft, doors, roomsById);
     if (offset === null) {
       throw new AppError('Tidak ada tempat kosong untuk pintu baru di dinding ini.');
@@ -79,7 +83,7 @@ export async function createDoor(roomA, roomB, doors, roomsById) {
     if (doors.some((d) => isSamePair(d, room_from, room_to))) {
       throw new AppError('Kedua ruangan ini sudah terhubung.');
     }
-    data = { room_from, room_to, offset: null, swing_into: null, hinge: null };
+    data = { room_from, room_to, jenis: null, offset: null, swing_into: null, hinge: null };
   }
 
   try {
@@ -102,6 +106,7 @@ export async function updateDoor(door, changes, doors, roomsById) {
       offset: next.offset,
       swing_into: next.swing_into ?? next.room_to,
       hinge: next.hinge ?? 'start',
+      jenis: next.jenis ?? 'tunggal',
     });
   } catch (error) {
     throw toAppError(error);

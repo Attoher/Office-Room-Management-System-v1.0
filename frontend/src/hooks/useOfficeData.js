@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { subscribeDoors } from '../services/doorService';
+import { subscribeElements } from '../services/elementService';
 import { subscribeFloors } from '../services/floorService';
 import { subscribeRooms } from '../services/roomService';
 
 /**
- * Data lantai, ruangan, dan pintu secara realtime dari Firestore.
+ * Data lantai, ruangan, pintu, dan elemen (jendela, kolom, furnitur) secara realtime dari Firestore.
  * status: 'loading' | 'ready' | 'error'
  */
 export function useOfficeData() {
   const [floors, setFloors] = useState(null);
   const [rooms, setRooms] = useState(null);
   const [rawDoors, setRawDoors] = useState(null);
+  const [rawElements, setRawElements] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -18,6 +20,11 @@ export function useOfficeData() {
       subscribeFloors(setFloors, setError),
       subscribeRooms(setRooms, setError),
       subscribeDoors(setRawDoors, setError),
+      // Elemen hanya pelengkap gambar: bila tidak terbaca (mis. rules lama), denah tetap jalan
+      subscribeElements(setRawElements, (elementError) => {
+        console.warn(elementError);
+        setRawElements([]);
+      }),
     ];
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
   }, []);
@@ -30,7 +37,13 @@ export function useOfficeData() {
     [rawDoors, roomsById],
   );
 
-  const loaded = floors !== null && rooms !== null && rawDoors !== null;
+  // Elemen yang menempel ke ruangan yang sudah tidak ada disembunyikan
+  const elements = useMemo(
+    () => (rawElements ?? []).filter((e) => e.room_id == null || roomsById.has(e.room_id)),
+    [rawElements, roomsById],
+  );
+
+  const loaded = floors !== null && rooms !== null && rawDoors !== null && rawElements !== null;
   let status = 'ready';
   if (error && !loaded) status = 'error';
   else if (!loaded) status = 'loading';
@@ -40,6 +53,7 @@ export function useOfficeData() {
     rooms: rooms ?? [],
     roomsById,
     doors,
+    elements,
     status,
     error,
   };

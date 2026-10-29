@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 
+const MODAL_WIDTHS = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-3xl' };
+
 export default function Modal({ open, title, onClose, children, footer, size = 'md' }) {
   const panelRef = useRef(null);
   // onClose biasanya fungsi inline; simpan di ref supaya efek di bawah hanya jalan saat modal dibuka
@@ -31,7 +33,7 @@ export default function Modal({ open, title, onClose, children, footer, size = '
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`relative max-h-[90vh] w-full overflow-y-auto rounded-xl bg-white shadow-xl ${size === 'sm' ? 'max-w-sm' : 'max-w-md'}`}
+        className={`relative max-h-[90vh] w-full overflow-y-auto rounded-xl bg-white shadow-xl ${MODAL_WIDTHS[size]}`}
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <h2 className="text-base font-semibold text-slate-900">{title}</h2>

@@ -1,12 +1,14 @@
 // Geometri denah. Satuan meter; posisi & ukuran ruangan selalu kelipatan GRID.
 export const GRID = 0.5;
+/** Lebar pintu daun tunggal (bawaan). Jenis lain punya lebar sendiri di DOOR_TYPES. */
 export const DOOR_WIDTH = 0.9;
 /** Jarak minimal tepi pintu ke ujung dinding bersama (sudut atau sambungan dinding lain). */
 export const END_CLEARANCE = 0.1;
 /** Tiang minimal di antara dua pintu yang segaris. */
 export const MIN_PIER = 0.2;
-/** Dinding bersama minimal agar muat satu pintu beserta jarak ke ujungnya. */
-export const MIN_DOOR_WALL = DOOR_WIDTH + END_CLEARANCE * 2;
+/** Dinding bersama minimal agar muat pintu selebar `width` beserta jarak ke ujungnya. */
+export const minDoorWall = (width = DOOR_WIDTH) => width + END_CLEARANCE * 2;
+export const MIN_DOOR_WALL = minDoorWall();
 export const MIN_ROOM_SIDE = 1;
 export const MAX_COORD = 500;
 const OFFSET_STEP = 0.1;
@@ -22,6 +24,20 @@ export const ROOM_TYPES = {
   lift: { label: 'Lift', vertical: true },
   luar: { label: 'Area luar' },
 };
+
+/**
+ * Jenis pintu. `swing`: punya daun yang berayun (dipakai untuk cek tabrakan daun pintu).
+ * `leaves`: jumlah daun berayun.
+ */
+export const DOOR_TYPES = {
+  tunggal: { label: 'Daun tunggal', width: DOOR_WIDTH, swing: true, leaves: 1 },
+  ganda: { label: 'Daun ganda', width: 1.6, swing: true, leaves: 2 },
+  geser: { label: 'Pintu geser', width: 1.2, swing: false, leaves: 0 },
+  bukaan: { label: 'Bukaan tanpa daun', width: 1.0, swing: false, leaves: 0 },
+};
+
+export const doorType = (door) => DOOR_TYPES[door.jenis] ?? DOOR_TYPES.tunggal;
+export const doorWidth = (door) => doorType(door).width;
 
 const EPS = 1e-6;
 
@@ -81,25 +97,26 @@ export function findNeighbors(rooms) {
 }
 
 /** Posisi pintu dibatasi supaya tetap di dalam dinding bersama dan tidak menempel ke ujungnya. */
-export function clampDoorOffset(wall, offset) {
-  const min = DOOR_WIDTH / 2 + END_CLEARANCE;
+export function clampDoorOffset(wall, offset, width = DOOR_WIDTH) {
+  const min = width / 2 + END_CLEARANCE;
   const max = wall.length - min;
   if (max < min) return wall.length / 2;
   return Math.min(max, Math.max(min, offset ?? wall.length / 2));
 }
 
 /**
- * Bentuk pintu horizontal (dalam satu lantai). `offset` diukur dari awal dinding bersama
- * ke tengah pintu. null bila dinding bersama sudah tidak ada atau terlalu pendek.
+ * Bentuk pintu (dalam satu lantai). `offset` diukur dari awal dinding bersama ke tengah pintu.
+ * null bila dinding bersama sudah tidak ada atau terlalu pendek untuk pintu selebar `width`.
  */
-export function doorGeometry(a, b, offset) {
+export function doorGeometry(a, b, offset, width = DOOR_WIDTH) {
   const wall = sharedWall(a, b);
-  if (!wall || wall.length < MIN_DOOR_WALL - EPS) return null;
-  const at = wall.start + clampDoorOffset(wall, offset);
-  const half = DOOR_WIDTH / 2;
+  if (!wall || wall.length < minDoorWall(width) - EPS) return null;
+  const at = wall.start + clampDoorOffset(wall, offset, width);
+  const half = width / 2;
   return wall.orientation === 'v'
     ? {
         wall,
+        width,
         point: { x: wall.coord, y: at },
         x1: wall.coord,
         y1: at - half,
@@ -108,6 +125,7 @@ export function doorGeometry(a, b, offset) {
       }
     : {
         wall,
+        width,
         point: { x: at, y: wall.coord },
         x1: at - half,
         y1: wall.coord,
@@ -116,10 +134,18 @@ export function doorGeometry(a, b, offset) {
       };
 }
 
+/** Bentuk pintu dari dokumen pintu (lebar mengikuti jenisnya). null bila tidak aktif. */
+export function geometryOfDoor(door, roomsById) {
+  const a = roomsById.get(door.room_from);
+  const b = roomsById.get(door.room_to);
+  if (!a || !b || a.lantai_id !== b.lantai_id) return null;
+  return doorGeometry(a, b, door.offset, doorWidth(door));
+}
+
 /** Offset pintu dari titik sembarang (mis. posisi pointer saat menggeser pintu). */
-export function offsetFromPoint(wall, point) {
+export function offsetFromPoint(wall, point, width = DOOR_WIDTH) {
   const along = wall.orientation === 'v' ? point.y : point.x;
-  return clampDoorOffset(wall, along - wall.start);
+  return clampDoorOffset(wall, along - wall.start, width);
 }
 
 /** Ruangan tempat daun pintu membuka; bawaan: room_to. */
@@ -145,18 +171,22 @@ export function doorHingeSide(geometry, intoRoom, hinge) {
 }
 
 /**
- * Daerah sapuan daun pintu: persegi selebar pintu di sisi ruangan tempat pintu membuka.
+ * Daerah sapuan daun pintu di sisi ruangan tempat pintu membuka: selebar celah pintu dan sedalam
+ * satu daun (daun ganda = setengah lebar). null untuk pintu tanpa daun berayun (geser, bukaan).
  * Dipakai untuk mendeteksi dua daun pintu yang saling bertabrakan.
  */
-function swingArea(geometry, intoRoom) {
+function swingArea(door, geometry, intoRoom) {
+  const type = doorType(door);
+  if (!type.swing) return null;
+  const depth = geometry.width / type.leaves;
   const { wall, x1, y1, x2, y2 } = geometry;
   const center = rectCenter(intoRoom);
   if (wall.orientation === 'v') {
     const dir = center.x > wall.coord ? 1 : -1;
-    return { x: dir > 0 ? wall.coord : wall.coord - DOOR_WIDTH, y: y1, w: DOOR_WIDTH, h: y2 - y1 };
+    return { x: dir > 0 ? wall.coord : wall.coord - depth, y: y1, w: depth, h: y2 - y1 };
   }
   const dir = center.y > wall.coord ? 1 : -1;
-  return { x: x1, y: dir > 0 ? wall.coord : wall.coord - DOOR_WIDTH, w: x2 - x1, h: DOOR_WIDTH };
+  return { x: x1, y: dir > 0 ? wall.coord : wall.coord - depth, w: x2 - x1, h: depth };
 }
 
 /**
@@ -169,9 +199,12 @@ export function doorPlacementError(door, doors, roomsById) {
   const a = roomsById.get(door.room_from);
   const b = roomsById.get(door.room_to);
   if (!a || !b || a.lantai_id !== b.lantai_id) return null;
-  const geometry = doorGeometry(a, b, door.offset);
-  if (!geometry) return `Dinding bersama minimal ${MIN_DOOR_WALL} m untuk pintu.`;
-  const swing = swingArea(geometry, roomsById.get(doorSwingInto(door)));
+  const geometry = doorGeometry(a, b, door.offset, doorWidth(door));
+  if (!geometry) {
+    const label = doorType(door).label.toLowerCase();
+    return `Dinding bersama minimal ${minDoorWall(doorWidth(door))} m untuk ${label}.`;
+  }
+  const swing = swingArea(door, geometry, roomsById.get(doorSwingInto(door)));
   const along = (g) => (g.wall.orientation === 'v' ? [g.y1, g.y2] : [g.x1, g.x2]);
   const [from, to] = along(geometry);
 
@@ -180,7 +213,7 @@ export function doorPlacementError(door, doors, roomsById) {
     const oa = roomsById.get(other.room_from);
     const ob = roomsById.get(other.room_to);
     if (!oa || !ob || oa.lantai_id !== a.lantai_id || ob.lantai_id !== a.lantai_id) continue;
-    const og = doorGeometry(oa, ob, other.offset);
+    const og = doorGeometry(oa, ob, other.offset, doorWidth(other));
     if (!og) continue;
     const label = `${oa.nama_ruangan}–${ob.nama_ruangan}`;
 
@@ -194,9 +227,11 @@ export function doorPlacementError(door, doors, roomsById) {
       }
     }
 
-    if (doorSwingInto(other) === doorSwingInto(door)) {
-      const otherSwing = swingArea(og, roomsById.get(doorSwingInto(other)));
-      if (rectsOverlap(swing, otherSwing)) return `Daun pintu bertabrakan dengan pintu ${label}.`;
+    if (swing && doorSwingInto(other) === doorSwingInto(door)) {
+      const otherSwing = swingArea(other, og, roomsById.get(doorSwingInto(other)));
+      if (otherSwing && rectsOverlap(swing, otherSwing)) {
+        return `Daun pintu bertabrakan dengan pintu ${label}.`;
+      }
     }
   }
   return null;
@@ -204,13 +239,14 @@ export function doorPlacementError(door, doors, roomsById) {
 
 /** Posisi pintu baru yang tidak bertabrakan, dicari dari tengah dinding ke arah luar. null bila penuh. */
 export function findFreeDoorOffset(door, doors, roomsById) {
+  const width = doorWidth(door);
   const wall = sharedWall(roomsById.get(door.room_from), roomsById.get(door.room_to));
-  if (!wall || wall.length < MIN_DOOR_WALL - EPS) return null;
+  if (!wall || wall.length < minDoorWall(width) - EPS) return null;
   const center = wall.length / 2;
   const steps = Math.ceil(wall.length / OFFSET_STEP);
   for (let i = 0; i <= steps; i += 1) {
     const delta = Math.ceil(i / 2) * OFFSET_STEP * (i % 2 === 0 ? -1 : 1);
-    const offset = clampDoorOffset(wall, center + delta);
+    const offset = clampDoorOffset(wall, center + delta, width);
     if (!doorPlacementError({ ...door, offset }, doors, roomsById)) {
       return Math.round(offset * 100) / 100;
     }
@@ -226,7 +262,7 @@ export function bestDoorBetween(a, b, doors) {
       (door.room_from === a.id && door.room_to === b.id) ||
       (door.room_from === b.id && door.room_to === a.id);
     if (!matches) continue;
-    const geometry = doorGeometry(a, b, door.offset);
+    const geometry = doorGeometry(a, b, door.offset, doorWidth(door));
     if (!geometry) continue;
     const ca = rectCenter(a);
     const cb = rectCenter(b);

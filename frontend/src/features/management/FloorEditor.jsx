@@ -1,20 +1,23 @@
 import { useMemo, useRef, useState } from 'react';
-import { MousePointer2, Share2, SquarePlus, ZoomIn, ZoomOut } from 'lucide-react';
+import { Columns3, MousePointer2, Share2, SquarePlus, ZoomIn, ZoomOut } from 'lucide-react';
 import ConnectionDiagram from '../../components/floorplan/ConnectionDiagram';
 import FloorPlanCanvas from '../../components/floorplan/FloorPlanCanvas';
 import { toPlanPoint } from '../../components/floorplan/planPoint';
 import Button from '../../components/ui/Button';
 import Modal from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/feedbackContext';
+import { clampFurniture, roomSideWall, snapElement } from '../../domain/elements';
 import {
   MIN_ROOM_SIDE,
-  doorGeometry,
+  doorWidth,
   geometryError,
+  geometryOfDoor,
   offsetFromPoint,
   planBounds,
   snapToGrid,
 } from '../../domain/geometry';
 import { updateDoor } from '../../services/doorService';
+import { createColumn, updateElement } from '../../services/elementService';
 import { createRoom, updateRoomGeometry } from '../../services/roomService';
 import RoomInfoForm from './RoomInfoForm';
 
@@ -23,6 +26,22 @@ const ZOOM_STEPS = [1, 1.5, 2, 3];
 // Area kerja minimal supaya selalu ada ruang kosong untuk menggambar
 const WORK_AREA = { x: -1, y: -1, w: 32, h: 22 };
 const HANDLE = 0.35;
+
+const MODES = [
+  ['select', 'Pilih & geser', MousePointer2],
+  ['draw', 'Gambar ruangan', SquarePlus],
+  ['kolom', 'Kolom', Columns3],
+  ['diagram', 'Diagram', Share2],
+];
+
+const HINTS = {
+  select:
+    'Klik ruangan atau elemen untuk melihat detail. Geser untuk memindahkan, tarik sudut untuk mengubah ukuran ruangan, geser titik biru untuk memindahkan pintu.',
+  draw: 'Tarik di area kosong untuk menggambar ruangan baru (grid 0,5 m).',
+  kolom: 'Klik di denah untuk menaruh kolom 40 × 40 cm. Ukurannya bisa diubah di panel detail.',
+  diagram:
+    'Garis = ruangan yang tersambung pintu. Titik tanpa garis belum punya pintu. Huruf di titik: K lorong, T tangga, L lift, A area luar. Klik titik untuk membuka detail ruangan.',
+};
 
 function unionBox(a, b) {
   const x = Math.min(a.x, b.x);
@@ -44,14 +63,32 @@ function rectFromPoints(a, b) {
   return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
 }
 
+function LayerToggle({ checked, onChange, children }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-600">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="size-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+      />
+      {children}
+    </label>
+  );
+}
+
 export default function FloorEditor({
   floorId,
   floors,
   rooms,
   roomsById,
   doors,
+  elements,
   selectedId,
+  selectedElementId,
   onSelect,
+  onSelectElement,
+  toolbarExtra,
 }) {
   const toast = useToast();
   const svgRef = useRef(null);
@@ -59,10 +96,12 @@ export default function FloorEditor({
   const [drag, setDrag] = useState(null);
   const [draft, setDraft] = useState(null); // kotak ruangan baru yang menunggu diisi
   const [zoomIndex, setZoomIndex] = useState(0);
+  const [layers, setLayers] = useState({ furniture: true, dimensions: false });
 
   const floorRooms = useMemo(() => rooms.filter((r) => r.lantai_id === floorId), [rooms, floorId]);
+  const ctx = { roomsById, elements, doors };
 
-  // Selama drag, posisi/ukuran ruangan & pintu yang digeser ditimpa sementara
+  // Selama drag, posisi ruangan, pintu, atau elemen yang digeser ditimpa sementara
   const previewRooms = useMemo(() => {
     if (!drag?.rect || drag.kind === 'draw') return floorRooms;
     return floorRooms.map((r) => (r.id === drag.roomId ? { ...r, ...drag.rect } : r));
@@ -79,6 +118,13 @@ export default function FloorEditor({
         : doors,
     [doors, drag],
   );
+  const previewElements = useMemo(
+    () =>
+      drag?.kind === 'element' && drag.changes
+        ? elements.map((e) => (e.id === drag.element.id ? { ...e, ...drag.changes } : e))
+        : elements,
+    [elements, drag],
+  );
 
   const box = drag?.box ?? unionBox(planBounds(floorRooms, 2), WORK_AREA);
   // Ruangan terpilih hanya diberi pegangan bila ada di lantai yang sedang dibuka
@@ -88,9 +134,7 @@ export default function FloorEditor({
     ? previewDoors
         .filter((d) => d.room_from === selected.id || d.room_to === selected.id)
         .map((d) => {
-          const a = previewById.get(d.room_from);
-          const b = previewById.get(d.room_to);
-          const geometry = a && b && doorGeometry(a, b, d.offset);
+          const geometry = geometryOfDoor(d, previewById);
           return geometry && { door: d, geometry };
         })
         .filter(Boolean)
@@ -104,18 +148,39 @@ export default function FloorEditor({
     setDrag({ ...state, start: point(event), moved: false, box });
   };
 
+  const placeColumn = async (event) => {
+    event.stopPropagation();
+    try {
+      const column = await createColumn(floorId, point(event));
+      onSelectElement(column.id);
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
   const handleBackgroundDown = (event) => {
-    if (mode === 'draw') {
-      begin(event, { kind: 'draw', rect: null });
-    } else {
+    if (mode === 'draw') begin(event, { kind: 'draw', rect: null });
+    else if (mode === 'kolom') placeColumn(event);
+    else {
       onSelect(null);
+      onSelectElement(null);
     }
   };
 
   const handleRoomDown = (event, room) => {
     if (mode === 'draw') return; // biarkan menggambar mulai dari area kosong saja
+    if (mode === 'kolom') {
+      placeColumn(event);
+      return;
+    }
     onSelect(room.id);
     begin(event, { kind: 'move', roomId: room.id, origin: room, rect: null });
+  };
+
+  const handleElementDown = (event, element) => {
+    if (mode !== 'select') return;
+    onSelectElement(element.id);
+    begin(event, { kind: 'element', element, changes: null });
   };
 
   const handleResizeDown = (event, corner) => {
@@ -123,7 +188,32 @@ export default function FloorEditor({
   };
 
   const handleDoorDown = (event, door, geometry) => {
-    begin(event, { kind: 'door', doorId: door.id, wall: geometry.wall, offset: door.offset });
+    begin(event, {
+      kind: 'door',
+      doorId: door.id,
+      wall: geometry.wall,
+      width: doorWidth(door),
+      offset: door.offset,
+    });
+  };
+
+  /** Perubahan elemen saat digeser: furnitur di dalam ruangan, kolom bebas, jendela di sisinya. */
+  const elementChanges = (element, p) => {
+    const dx = p.x - drag.start.x;
+    const dy = p.y - drag.start.y;
+    if (element.jenis === 'furnitur') {
+      const room = roomsById.get(element.room_id);
+      return clampFurniture(
+        { ...element, x: snapElement(element.x + dx), y: snapElement(element.y + dy) },
+        room,
+      );
+    }
+    if (element.jenis === 'kolom') {
+      return { x: snapElement(element.x + dx), y: snapElement(element.y + dy) };
+    }
+    const wall = roomSideWall(roomsById.get(element.room_id), element.sisi);
+    const along = wall.orientation === 'v' ? p.y : p.x;
+    return { offset: snapElement(along - wall.start) };
   };
 
   const handleMove = (event) => {
@@ -160,7 +250,9 @@ export default function FloorEditor({
         rect: { ...rect, w: Math.max(MIN_ROOM_SIDE, rect.w), h: Math.max(MIN_ROOM_SIDE, rect.h) },
       });
     } else if (drag.kind === 'door') {
-      setDrag({ ...drag, moved, offset: offsetFromPoint(drag.wall, p) });
+      setDrag({ ...drag, moved, offset: offsetFromPoint(drag.wall, p, drag.width) });
+    } else if (drag.kind === 'element') {
+      setDrag({ ...drag, moved, changes: elementChanges(drag.element, p) });
     }
   };
 
@@ -191,6 +283,8 @@ export default function FloorEditor({
       if (current.kind === 'door') {
         const door = doors.find((d) => d.id === current.doorId);
         await updateDoor(door, { offset: current.offset }, doors, roomsById);
+      } else if (current.kind === 'element') {
+        await updateElement(current.element, current.changes, ctx);
       } else {
         const room = roomsById.get(current.roomId);
         await updateRoomGeometry(room, current.rect, rooms);
@@ -225,12 +319,8 @@ export default function FloorEditor({
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex rounded-lg bg-slate-100 p-1">
-          {[
-            ['select', 'Pilih & geser', MousePointer2],
-            ['draw', 'Gambar ruangan', SquarePlus],
-            ['diagram', 'Diagram', Share2],
-          ].map(([key, label, Icon]) => (
+        <div className="flex flex-wrap rounded-lg bg-slate-100 p-1">
+          {MODES.map(([key, label, Icon]) => (
             <button
               key={key}
               type="button"
@@ -247,12 +337,13 @@ export default function FloorEditor({
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           {sizeLabel && (
             <span className="mr-2 rounded bg-slate-900 px-2 py-0.5 text-xs font-medium tabular-nums text-white">
               {sizeLabel.w} × {sizeLabel.h} m · ({sizeLabel.x}, {sizeLabel.y})
             </span>
           )}
+          {toolbarExtra}
           <Button
             variant="ghost"
             size="icon"
@@ -272,9 +363,26 @@ export default function FloorEditor({
         </div>
       </div>
 
+      {mode !== 'diagram' && (
+        <div className="mb-2 flex gap-4">
+          <LayerToggle
+            checked={layers.furniture}
+            onChange={(furniture) => setLayers((l) => ({ ...l, furniture }))}
+          >
+            Furnitur
+          </LayerToggle>
+          <LayerToggle
+            checked={layers.dimensions}
+            onChange={(dimensions) => setLayers((l) => ({ ...l, dimensions }))}
+          >
+            Garis ukuran
+          </LayerToggle>
+        </div>
+      )}
+
       <div
         className={`h-[480px] overflow-auto rounded-lg bg-white ring-1 ring-inset ring-slate-200 sm:h-[560px] ${
-          mode === 'draw' ? 'cursor-crosshair' : ''
+          mode === 'draw' || mode === 'kolom' ? 'cursor-crosshair' : ''
         }`}
       >
         {mode === 'diagram' ? (
@@ -294,11 +402,15 @@ export default function FloorEditor({
             ref={svgRef}
             rooms={previewRooms}
             doors={previewDoors}
+            elements={previewElements}
             roomsById={previewById}
             box={box}
             zoom={zoom}
+            layers={layers}
             selectedId={selectedId}
+            selectedElementId={selectedElementId}
             onRoomPointerDown={handleRoomDown}
+            onElementPointerDown={handleElementDown}
             onPointerDown={handleBackgroundDown}
             onPointerMove={handleMove}
             onPointerUp={handleUp}
@@ -355,13 +467,7 @@ export default function FloorEditor({
           </FloorPlanCanvas>
         )}
       </div>
-      <p className="mt-2 text-xs text-slate-500">
-        {mode === 'draw'
-          ? 'Tarik di area kosong untuk menggambar ruangan baru (grid 0,5 m).'
-          : mode === 'diagram'
-            ? 'Garis = ruangan yang tersambung pintu. Titik tanpa garis belum punya pintu. Huruf di titik: K lorong, T tangga, L lift, A area luar. Klik titik untuk membuka detail ruangan.'
-            : 'Klik ruangan untuk melihat detail. Geser untuk memindahkan, tarik sudut untuk mengubah ukuran, geser titik biru untuk memindahkan pintu.'}
-      </p>
+      <p className="mt-2 text-xs text-slate-500">{HINTS[mode]}</p>
 
       <Modal open={Boolean(draft)} title="Ruangan baru" onClose={() => setDraft(null)}>
         {draft && (

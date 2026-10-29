@@ -14,6 +14,15 @@ React 18 · Vite 5 · Tailwind CSS 3 · Firebase Cloud Firestore
   - Pintu tidak boleh bertabrakan: ada tiang minimal 0,2 m di antara pintu yang segaris, jarak 0,1 m dari ujung dinding, dan daun pintu yang membuka ke ruangan yang sama tidak boleh saling menyapu.
   - Tangga/lift bisa dihubungkan ke tangga/lift di lantai lain.
   - Mode **Diagram**: titik per ruangan dengan garis hanya untuk ruangan yang tersambung pintu, untuk melihat sekilas ruangan mana yang belum punya akses.
+  - **Gambar arsitek**: dinding luar tebal dan dinding dalam tipis.
+    - Jenis pintu: daun tunggal 0,9 m, daun ganda 1,6 m, geser 1,2 m, dan bukaan tanpa daun 1,0 m.
+    - **Jendela** di sisi ruangan, **kolom** (mode Kolom), dan **garis ukuran** yang bisa ditampilkan atau disembunyikan.
+  - **Furnitur**: meja kerja, kursi, meja rapat, sofa, resepsionis, lemari, sanitair, tanaman.
+    - Bisa digeser dan diputar 90°, dan furnitur baru otomatis menempel ke dinding.
+    - Jumlah kursinya dipakai sebagai saran kapasitas ruangan.
+  - **DXF (AutoCAD)**:
+    - **Export** satu lantai ke DXF R12 (mm) dengan layer `A-RUANG`, `A-DINDING-LUAR`, `A-PINTU`, `A-JENDELA`, `A-KOLOM`, `A-FURNITUR`, `A-TEKS`.
+    - **Import** ruangan dari polyline tertutup, nama dari teks di dalamnya, dan pintu dari busur ayunan. Langkahnya: pilih layer, satuan, dan tebal dinding, lalu lihat pratinjau. DWG perlu disimpan sebagai DXF dulu, dan ruangan non-kotak didekati dengan kotak.
 - **Jalur tamu**: Dijkstra dengan jarak dalam meter (tengah ruangan → pintu → tengah ruangan), plus hingga 5 jalur alternatif (algoritma Yen).
   - Jalur bisa lintas lantai lewat tangga atau lift.
   - Ruangan penuh dihindari, dan ruangan yang ramai diberi biaya tambahan.
@@ -43,7 +52,9 @@ firebase.json, .firebaserc   Konfigurasi Firebase CLI (deploy rules)
 frontend/scripts/seed-demo.js  Contoh kantor 2 lantai
 frontend/src/
   domain/                    Logika murni + unit test
-    geometry.js              Dinding bersama, tetangga, pintu, validasi denah
+    geometry.js              Dinding bersama, tetangga, pintu & jenisnya, validasi denah
+    elements.js              Jendela, kolom, furnitur, dinding luar
+    dxf/                     Export & import DXF
     pathfinding.js           Graph berbobot, Dijkstra, k-jalur (Yen)
     occupancy.js             Status & statistik occupancy
     roomValidation.js        Validasi info ruangan, luas
@@ -61,7 +72,8 @@ frontend/src/
 | --- | --- |
 | `floors/{id}` | `id`, `nama` |
 | `rooms/{id}` | `id`, `nama_ruangan`, `nama_key`, `tipe`, `lantai_id`, `x`, `y`, `w`, `h` (meter), `luas` (= w × h), `kapasitas_max`, `occupancy`, `created_at`, `updated_at` |
-| `doors/{id}` | `room_from`, `room_to` (selalu `from < to`), `offset`: jarak tengah pintu dari awal dinding bersama (meter), `swing_into`: ruangan tempat daun pintu membuka, `hinge`: `start` atau `end`. Bernilai `null` untuk penghubung tangga/lift antar lantai |
+| `doors/{id}` | `room_from`, `room_to` (selalu `from < to`), `offset`: jarak tengah pintu dari awal dinding bersama (meter), `swing_into`: ruangan tempat daun pintu membuka, `hinge`: `start` atau `end`, `jenis`: `tunggal`, `ganda`, `geser`, atau `bukaan`. Bernilai `null` untuk penghubung tangga/lift antar lantai |
+| `elements/{id}` | `jenis` (`jendela`, `kolom`, atau `furnitur`) dan `lantai_id`. Jendela: `room_id`, `sisi`, `offset`, `lebar`. Kolom: `x`, `y`, `w`, `h`. Furnitur: `room_id`, `model`, `x`, `y` (relatif ruangan), `rotasi` |
 | `meta/counters` | `rooms`, `floors`: ID numerik terakhir |
 
 Aplikasi berjalan tanpa login. `firestore.rules` membatasi bentuk dan rentang data: posisi kelipatan 0,5 m, luas sama dengan panjang × lebar, occupancy di antara 0 dan kapasitas, ID berurutan, pintu satu lantai punya posisi, dan pintu antar lantai hanya antara tangga/lift. Ruangan yang bertumpuk dicegah di aplikasi. Untuk memasang rules:

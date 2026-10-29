@@ -148,15 +148,16 @@ export async function updateRoomGeometry(room, rect, allRooms) {
   }
 }
 
-/** Hapus ruangan beserta semua pintunya dalam satu batch. */
+/** Hapus ruangan beserta semua pintu, jendela, dan furniturnya dalam satu batch. */
 export async function deleteRoom(roomId) {
   try {
-    const [from, to] = await Promise.all([
+    const [from, to, attached] = await Promise.all([
       getDocs(query(doorsCol, where('room_from', '==', roomId))),
       getDocs(query(doorsCol, where('room_to', '==', roomId))),
+      getDocs(query(collection(db, 'elements'), where('room_id', '==', roomId))),
     ]);
     const batch = writeBatch(db);
-    [...from.docs, ...to.docs].forEach((d) => batch.delete(d.ref));
+    [...from.docs, ...to.docs, ...attached.docs].forEach((d) => batch.delete(d.ref));
     batch.delete(roomRef(roomId));
     await batch.commit();
   } catch (error) {

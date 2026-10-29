@@ -6,23 +6,28 @@ import {
   DoorOpen,
   FlipHorizontal2,
   Plus,
+  Sofa,
   Trash2,
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { Field, Input, Select } from '../../components/ui/Field';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { useConfirm, useToast } from '../../components/ui/feedbackContext';
+import { FURNITURE, ROOM_SIDES, seatsInRoom } from '../../domain/elements';
 import {
+  DOOR_TYPES,
   MIN_DOOR_WALL,
   ROOM_TYPES,
-  doorGeometry,
   doorHingeSide,
+  doorType,
+  geometryOfDoor,
   doorPlacementError,
   doorSwingInto,
   findNeighbors,
   isVerticalType,
 } from '../../domain/geometry';
 import { createDoor, deleteDoor, isSamePair, updateDoor } from '../../services/doorService';
+import { createFurniture, createWindow, deleteElement } from '../../services/elementService';
 import { deleteRoom, updateRoomGeometry, updateRoomInfo } from '../../services/roomService';
 import RoomInfoForm from './RoomInfoForm';
 
@@ -36,12 +41,29 @@ function SectionTitle({ children }) {
   );
 }
 
-/** Detail ruangan terpilih di editor: info, ukuran, tetangga & pintu, penghubung antar lantai. */
-export default function RoomInspector({ room, rooms, roomsById, doors, floors, onDeleted }) {
+/**
+ * Detail ruangan terpilih di editor: info, ukuran, tetangga & pintu, penghubung antar lantai,
+ * jendela, dan furnitur.
+ */
+export default function RoomInspector({
+  room,
+  rooms,
+  roomsById,
+  doors,
+  elements,
+  floors,
+  onDeleted,
+  onSelectElement,
+}) {
   const toast = useToast();
   const confirm = useConfirm();
   const [busy, setBusy] = useState(null);
   const [linkTarget, setLinkTarget] = useState('');
+  const [windowSide, setWindowSide] = useState('atas');
+  const [furnitureModel, setFurnitureModel] = useState('meja_kerja');
+  const myWindows = elements.filter((e) => e.jenis === 'jendela' && e.room_id === room.id);
+  const myFurniture = elements.filter((e) => e.jenis === 'furnitur' && e.room_id === room.id);
+  const seats = seatsInRoom(room.id, elements);
 
   const neighbors = useMemo(
     () => findNeighbors(rooms.filter((r) => r.lantai_id === room.lantai_id)).get(room.id) ?? [],
@@ -56,7 +78,7 @@ export default function RoomInspector({ room, rooms, roomsById, doors, floors, o
   // Pintu yang ruangannya tidak lagi bersebelahan (mis. setelah ruangan digeser)
   const brokenDoors = myDoors.filter((d) => {
     const other = otherOf(d);
-    return other.lantai_id === room.lantai_id && !doorGeometry(room, other, d.offset);
+    return other.lantai_id === room.lantai_id && !geometryOfDoor(d, roomsById);
   });
   const linkCandidates = isVerticalType(room.tipe)
     ? rooms.filter(
@@ -153,7 +175,7 @@ export default function RoomInspector({ room, rooms, roomsById, doors, floors, o
             {neighbors.map(({ roomId, wall }) => {
               const other = roomsById.get(roomId);
               const pairDoors = myDoors.filter(
-                (d) => isSamePair(d, room.id, roomId) && doorGeometry(room, other, d.offset),
+                (d) => isSamePair(d, room.id, roomId) && geometryOfDoor(d, roomsById),
               );
               const canDoor = wall.length >= MIN_DOOR_WALL;
               const addKey = `add-${roomId}`;
@@ -232,6 +254,151 @@ export default function RoomInspector({ room, rooms, roomsById, doors, floors, o
         )}
       </section>
 
+      {room.tipe !== 'luar' && (
+        <section>
+          <SectionTitle>Jendela</SectionTitle>
+          {myWindows.length > 0 && (
+            <ul className="mb-2 divide-y divide-slate-100 rounded-lg ring-1 ring-slate-200">
+              {myWindows.map((win) => (
+                <li key={win.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => onSelectElement(win.id)}
+                    className="min-w-0 flex-1 truncate text-left text-slate-700 hover:text-blue-600"
+                  >
+                    Sisi {ROOM_SIDES[win.sisi].label.toLowerCase()} · {formatMeters(win.lebar)}
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    icon={Trash2}
+                    loading={busy === win.id}
+                    onClick={() => run(win.id, () => deleteElement(win.id))}
+                    className="hover:bg-red-50 hover:text-red-600"
+                    aria-label="Hapus jendela"
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex gap-2">
+            <Select
+              value={windowSide}
+              onChange={(e) => setWindowSide(e.target.value)}
+              aria-label="Sisi jendela"
+            >
+              {Object.entries(ROOM_SIDES).map(([key, side]) => (
+                <option key={key} value={key}>
+                  Sisi {side.label.toLowerCase()}
+                </option>
+              ))}
+            </Select>
+            <Button
+              variant="secondary"
+              icon={Plus}
+              loading={busy === 'window'}
+              onClick={() =>
+                run('window', async () => {
+                  const win = await createWindow(room, windowSide, { elements, doors, roomsById });
+                  onSelectElement(win.id);
+                })
+              }
+            >
+              Jendela
+            </Button>
+          </div>
+        </section>
+      )}
+
+      <section>
+        <SectionTitle>Furnitur</SectionTitle>
+        {myFurniture.length > 0 && (
+          <ul className="mb-2 divide-y divide-slate-100 rounded-lg ring-1 ring-slate-200">
+            {myFurniture.map((item) => (
+              <li key={item.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+                <button
+                  type="button"
+                  onClick={() => onSelectElement(item.id)}
+                  className="min-w-0 flex-1 truncate text-left text-slate-700 hover:text-blue-600"
+                >
+                  {FURNITURE[item.model]?.label ?? item.model}
+                </button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  icon={Trash2}
+                  loading={busy === item.id}
+                  onClick={() => run(item.id, () => deleteElement(item.id))}
+                  className="hover:bg-red-50 hover:text-red-600"
+                  aria-label="Hapus furnitur"
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex gap-2">
+          <Select
+            value={furnitureModel}
+            onChange={(e) => setFurnitureModel(e.target.value)}
+            aria-label="Jenis furnitur"
+          >
+            {Object.entries(FURNITURE).map(([key, model]) => (
+              <option key={key} value={key}>
+                {model.label}
+              </option>
+            ))}
+          </Select>
+          <Button
+            variant="secondary"
+            icon={Sofa}
+            loading={busy === 'furniture'}
+            onClick={() =>
+              run('furniture', async () => {
+                const item = await createFurniture(room, furnitureModel, elements);
+                onSelectElement(item.id);
+              })
+            }
+          >
+            Tambah
+          </Button>
+        </div>
+        {seats > 0 && (
+          <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
+            <span>
+              Furnitur menyediakan <strong>{seats} kursi</strong>
+              {seats !== room.kapasitas_max && ` (kapasitas sekarang ${room.kapasitas_max})`}.
+            </span>
+            {seats !== room.kapasitas_max && (
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={busy === 'capacity'}
+                disabled={seats < room.occupancy}
+                title={
+                  seats < room.occupancy
+                    ? `Masih ada ${room.occupancy} orang di ruangan`
+                    : undefined
+                }
+                onClick={() =>
+                  run(
+                    'capacity',
+                    () =>
+                      updateRoomInfo(room, {
+                        nama_ruangan: room.nama_ruangan,
+                        tipe: room.tipe,
+                        kapasitas_max: seats,
+                      }),
+                    'Kapasitas diperbarui.',
+                  )
+                }
+              >
+                Jadikan kapasitas
+              </Button>
+            )}
+          </div>
+        )}
+      </section>
+
       {isVerticalType(room.tipe) && (
         <section>
           <SectionTitle>Penghubung antar lantai</SectionTitle>
@@ -302,16 +469,17 @@ export default function RoomInspector({ room, rooms, roomsById, doors, floors, o
 /** Satu pintu: arah buka, engsel, peringatan tabrakan, dan tombol aksinya. */
 function DoorRow({ door, label, room, other, doors, roomsById, busy, run }) {
   const into = doorSwingInto(door) === room.id ? room : other;
-  const geometry = doorGeometry(room, other, door.offset);
+  const geometry = geometryOfDoor(door, roomsById);
   const side = doorHingeSide(geometry, into, door.hinge);
+  const swings = doorType(door).swing;
   const conflict = doorPlacementError(door, doors, roomsById);
   const key = (action) => `${action}-${door.id}`;
   return (
     <li className="rounded-md bg-slate-50 px-2 py-1.5">
       <div className="flex items-center gap-2 text-xs text-slate-600">
         <span className="min-w-0 flex-1">
-          <span className="font-medium text-slate-800">{label}</span> · membuka ke{' '}
-          {into.nama_ruangan} · engsel {side}
+          <span className="font-medium text-slate-800">{label}</span>
+          {swings ? ` · membuka ke ${into.nama_ruangan} · engsel ${side}` : ''}
         </span>
         <Button
           variant="ghost"
@@ -325,11 +493,27 @@ function DoorRow({ door, label, room, other, doors, roomsById, busy, run }) {
         />
       </div>
       <div className="mt-1 flex flex-wrap gap-1">
+        <select
+          value={door.jenis ?? 'tunggal'}
+          disabled={busy === key('type')}
+          onChange={(e) =>
+            run(key('type'), () => updateDoor(door, { jenis: e.target.value }, doors, roomsById))
+          }
+          className="h-8 rounded-lg border-0 bg-white py-0 pl-2 pr-7 text-xs text-slate-700 ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-blue-600"
+          aria-label={`Jenis ${label.toLowerCase()}`}
+        >
+          {Object.entries(DOOR_TYPES).map(([value, type]) => (
+            <option key={value} value={value}>
+              {type.label} ({type.width} m)
+            </option>
+          ))}
+        </select>
         <Button
           variant="secondary"
           size="sm"
           icon={ArrowLeftRight}
           loading={busy === key('swing')}
+          disabled={!swings}
           onClick={() =>
             run(key('swing'), () =>
               updateDoor(
@@ -349,6 +533,7 @@ function DoorRow({ door, label, room, other, doors, roomsById, busy, run }) {
           size="sm"
           icon={FlipHorizontal2}
           loading={busy === key('hinge')}
+          disabled={!swings || door.jenis === 'ganda'}
           onClick={() =>
             run(key('hinge'), () =>
               updateDoor(door, { hinge: door.hinge === 'end' ? 'start' : 'end' }, doors, roomsById),

@@ -38,7 +38,7 @@ function exportSvgAsPng(svg, box, filename) {
   image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`;
 }
 
-export default function PathfindingView({ floors, rooms, roomsById, doors, onNavigate }) {
+export default function PathfindingView({ floors, rooms, roomsById, doors, elements, onNavigate }) {
   const svgRef = useRef(null);
   const [startId, setStartId] = useState(() => readRouteParam('asal'));
   const [targetId, setTargetId] = useState(() => readRouteParam('tujuan'));
@@ -146,7 +146,7 @@ export default function PathfindingView({ floors, rooms, roomsById, doors, onNav
     ));
 
   return (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
+    <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-5">
       <Card className="h-fit xl:col-span-2">
         <CardHeader
           title="Cek jalur tamu"
@@ -306,6 +306,7 @@ export default function PathfindingView({ floors, rooms, roomsById, doors, onNav
               ref={svgRef}
               rooms={floorRooms}
               doors={doors}
+              elements={elements}
               roomsById={roomsById}
               box={box}
               zoom={ZOOM_STEPS[zoomIndex]}
