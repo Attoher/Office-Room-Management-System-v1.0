@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { MousePointer2, SquarePlus, ZoomIn, ZoomOut } from 'lucide-react';
+import { MousePointer2, Share2, SquarePlus, ZoomIn, ZoomOut } from 'lucide-react';
+import ConnectionDiagram from '../../components/floorplan/ConnectionDiagram';
 import FloorPlanCanvas from '../../components/floorplan/FloorPlanCanvas';
 import { toPlanPoint } from '../../components/floorplan/planPoint';
 import Button from '../../components/ui/Button';
@@ -43,7 +44,15 @@ function rectFromPoints(a, b) {
   return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
 }
 
-export default function FloorEditor({ floorId, rooms, roomsById, doors, selectedId, onSelect }) {
+export default function FloorEditor({
+  floorId,
+  floors,
+  rooms,
+  roomsById,
+  doors,
+  selectedId,
+  onSelect,
+}) {
   const toast = useToast();
   const svgRef = useRef(null);
   const [mode, setMode] = useState('select');
@@ -220,6 +229,7 @@ export default function FloorEditor({ floorId, rooms, roomsById, doors, selected
           {[
             ['select', 'Pilih & geser', MousePointer2],
             ['draw', 'Gambar ruangan', SquarePlus],
+            ['diagram', 'Diagram', Share2],
           ].map(([key, label, Icon]) => (
             <button
               key={key}
@@ -267,74 +277,90 @@ export default function FloorEditor({ floorId, rooms, roomsById, doors, selected
           mode === 'draw' ? 'cursor-crosshair' : ''
         }`}
       >
-        <FloorPlanCanvas
-          ref={svgRef}
-          rooms={previewRooms}
-          doors={previewDoors}
-          roomsById={previewById}
-          box={box}
-          zoom={zoom}
-          selectedId={selectedId}
-          onRoomPointerDown={handleRoomDown}
-          onPointerDown={handleBackgroundDown}
-          onPointerMove={handleMove}
-          onPointerUp={handleUp}
-          onPointerCancel={() => setDrag(null)}
-        >
-          {draftRect && (
-            <rect
-              x={draftRect.x}
-              y={draftRect.y}
-              width={draftRect.w}
-              height={draftRect.h}
-              fill="rgba(37, 99, 235, 0.08)"
-              stroke="#2563eb"
-              strokeWidth="0.08"
-              strokeDasharray="0.3 0.2"
-              pointerEvents="none"
-            />
-          )}
-
-          {mode === 'select' &&
-            selectedDoors.map(({ door, geometry }) => (
-              <circle
-                key={door.id}
-                cx={geometry.point.x}
-                cy={geometry.point.y}
-                r="0.22"
-                fill="#ffffff"
-                stroke="#2563eb"
-                strokeWidth="0.07"
-                style={{ cursor: geometry.wall.orientation === 'v' ? 'ns-resize' : 'ew-resize' }}
-                onPointerDown={(event) => handleDoorDown(event, door, geometry)}
-              >
-                <title>Geser untuk memindahkan pintu</title>
-              </circle>
-            ))}
-
-          {mode === 'select' &&
-            corners.map(([corner, x, y]) => (
+        {mode === 'diagram' ? (
+          <ConnectionDiagram
+            rooms={floorRooms}
+            doors={doors}
+            roomsById={roomsById}
+            floorNames={new Map(floors.map((f) => [f.id, f.nama]))}
+            // Diagram tidak perlu area kosong untuk menggambar, jadi dipaskan ke ruangan
+            box={planBounds(floorRooms, 1.5)}
+            zoom={zoom}
+            selectedId={selectedId}
+            onRoomClick={onSelect}
+          />
+        ) : (
+          <FloorPlanCanvas
+            ref={svgRef}
+            rooms={previewRooms}
+            doors={previewDoors}
+            roomsById={previewById}
+            box={box}
+            zoom={zoom}
+            selectedId={selectedId}
+            onRoomPointerDown={handleRoomDown}
+            onPointerDown={handleBackgroundDown}
+            onPointerMove={handleMove}
+            onPointerUp={handleUp}
+            onPointerCancel={() => setDrag(null)}
+          >
+            {draftRect && (
               <rect
-                key={corner}
-                x={x - HANDLE / 2}
-                y={y - HANDLE / 2}
-                width={HANDLE}
-                height={HANDLE}
-                fill="#2563eb"
-                stroke="#ffffff"
-                strokeWidth="0.05"
-                style={{
-                  cursor: corner === 'nw' || corner === 'se' ? 'nwse-resize' : 'nesw-resize',
-                }}
-                onPointerDown={(event) => handleResizeDown(event, corner)}
+                x={draftRect.x}
+                y={draftRect.y}
+                width={draftRect.w}
+                height={draftRect.h}
+                fill="rgba(37, 99, 235, 0.08)"
+                stroke="#2563eb"
+                strokeWidth="0.08"
+                strokeDasharray="0.3 0.2"
+                pointerEvents="none"
               />
-            ))}
-        </FloorPlanCanvas>
+            )}
+
+            {mode === 'select' &&
+              selectedDoors.map(({ door, geometry }) => (
+                <circle
+                  key={door.id}
+                  cx={geometry.point.x}
+                  cy={geometry.point.y}
+                  r="0.22"
+                  fill="#ffffff"
+                  stroke="#2563eb"
+                  strokeWidth="0.07"
+                  style={{ cursor: geometry.wall.orientation === 'v' ? 'ns-resize' : 'ew-resize' }}
+                  onPointerDown={(event) => handleDoorDown(event, door, geometry)}
+                >
+                  <title>Geser untuk memindahkan pintu</title>
+                </circle>
+              ))}
+
+            {mode === 'select' &&
+              corners.map(([corner, x, y]) => (
+                <rect
+                  key={corner}
+                  x={x - HANDLE / 2}
+                  y={y - HANDLE / 2}
+                  width={HANDLE}
+                  height={HANDLE}
+                  fill="#2563eb"
+                  stroke="#ffffff"
+                  strokeWidth="0.05"
+                  style={{
+                    cursor: corner === 'nw' || corner === 'se' ? 'nwse-resize' : 'nesw-resize',
+                  }}
+                  onPointerDown={(event) => handleResizeDown(event, corner)}
+                />
+              ))}
+          </FloorPlanCanvas>
+        )}
       </div>
       <p className="mt-2 text-xs text-slate-500">
         {mode === 'draw'
           ? 'Tarik di area kosong untuk menggambar ruangan baru (grid 0,5 m).'
-          : 'Klik ruangan untuk melihat detail. Geser untuk memindahkan, tarik sudut untuk mengubah ukuran, geser titik biru untuk memindahkan pintu.'}
+          : mode === 'diagram'
+            ? 'Garis = ruangan yang tersambung pintu. Titik tanpa garis belum punya pintu. Huruf di titik: K lorong, T tangga, L lift, A area luar. Klik titik untuk membuka detail ruangan.'
+            : 'Klik ruangan untuk melihat detail. Geser untuk memindahkan, tarik sudut untuk mengubah ukuran, geser titik biru untuk memindahkan pintu.'}
       </p>
 
       <Modal open={Boolean(draft)} title="Ruangan baru" onClose={() => setDraft(null)}>

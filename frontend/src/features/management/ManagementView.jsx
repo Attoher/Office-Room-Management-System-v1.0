@@ -76,6 +76,7 @@ export default function ManagementView({ floors, rooms, roomsById, doors }) {
             <FloorEditor
               key={floorId}
               floorId={floorId}
+              floors={floors}
               rooms={rooms}
               roomsById={roomsById}
               doors={doors}

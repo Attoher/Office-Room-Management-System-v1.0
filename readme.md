@@ -13,6 +13,7 @@ React 18 · Vite 5 · Tailwind CSS 3 · Firebase Cloud Firestore
   - **Tetangga** terdeteksi otomatis dari dinding bersama. **Pintu** dipasang di dinding bersama (minimal 1,1 m), bisa lebih dari satu per pasangan ruangan, bisa digeser sepanjang dinding, dan arah buka serta engselnya bisa dibalik.
   - Pintu tidak boleh bertabrakan: ada tiang minimal 0,2 m di antara pintu yang segaris, jarak 0,1 m dari ujung dinding, dan daun pintu yang membuka ke ruangan yang sama tidak boleh saling menyapu.
   - Tangga/lift bisa dihubungkan ke tangga/lift di lantai lain.
+  - Mode **Diagram**: titik per ruangan dengan garis hanya untuk ruangan yang tersambung pintu, untuk melihat sekilas ruangan mana yang belum punya akses.
 - **Jalur tamu**: Dijkstra dengan jarak dalam meter (tengah ruangan → pintu → tengah ruangan), plus hingga 5 jalur alternatif (algoritma Yen).
   - Jalur bisa lintas lantai lewat tangga atau lift.
   - Ruangan penuh dihindari, dan ruangan yang ramai diberi biaya tambahan.
