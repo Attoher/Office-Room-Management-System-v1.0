@@ -52,6 +52,7 @@ export default function RoomInspector({
   doors,
   elements,
   floors,
+  floorIds,
   onDeleted,
   onSelectElement,
 }) {
@@ -152,7 +153,7 @@ export default function RoomInspector({
           lockVerticalType={verticalLinks.length > 0}
           submitLabel="Simpan"
           onSubmit={async (values) => {
-            await updateRoomInfo(room, values);
+            await updateRoomInfo(room, values, { floorIds });
             toast.success('Informasi ruangan disimpan.');
           }}
         />
@@ -383,11 +384,11 @@ export default function RoomInspector({
                   run(
                     'capacity',
                     () =>
-                      updateRoomInfo(room, {
-                        nama_ruangan: room.nama_ruangan,
-                        tipe: room.tipe,
-                        kapasitas_max: seats,
-                      }),
+                      updateRoomInfo(
+                        room,
+                        { nama_ruangan: room.nama_ruangan, tipe: room.tipe, kapasitas_max: seats },
+                        { floorIds },
+                      ),
                     'Kapasitas diperbarui.',
                   )
                 }

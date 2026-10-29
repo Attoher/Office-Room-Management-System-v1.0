@@ -6,6 +6,10 @@ React 18 · Vite 5 · Tailwind CSS 3 · Firebase Cloud Firestore
 
 ## Fitur
 
+- **Multi kantor**: data tersusun Kantor → Lantai → Ruangan → Pintu dan elemen.
+  - Kantor dipilih di header. Pilihan diingat browser dan ikut di URL (`?kantor=ID`).
+  - Kantor dikelola dari menu "Kelola kantor": tambah, ubah nama dan alamat, dan hapus (hanya kantor kosong).
+  - Semua halaman hanya menampilkan isi kantor yang dipilih, dan nama ruangan cukup unik per kantor.
 - **Monitoring**: kartu per ruangan dengan status hijau (< 70%), kuning (70–90%), dan merah (≥ 90%). Tersedia pencarian, filter lantai dan status, ringkasan statistik, serta tombol tambah/kurangi orang. Perubahan dari perangkat lain tampil otomatis.
 - **Editor denah (Manajemen)**: denah multi lantai di grid 0,5 m.
   - Gambar ruangan sebagai kotak, lalu geser dan ubah ukurannya dari sudut. Luas dihitung otomatis dari panjang × lebar.
@@ -70,11 +74,12 @@ frontend/src/
 
 | Koleksi | Isi |
 | --- | --- |
-| `floors/{id}` | `id`, `nama` |
+| `offices/{id}` | `id`, `nama`, `alamat` |
+| `floors/{id}` | `id`, `office_id`, `nama` |
 | `rooms/{id}` | `id`, `nama_ruangan`, `nama_key`, `tipe`, `lantai_id`, `x`, `y`, `w`, `h` (meter), `luas` (= w × h), `kapasitas_max`, `occupancy`, `created_at`, `updated_at` |
 | `doors/{id}` | `room_from`, `room_to` (selalu `from < to`), `offset`: jarak tengah pintu dari awal dinding bersama (meter), `swing_into`: ruangan tempat daun pintu membuka, `hinge`: `start` atau `end`, `jenis`: `tunggal`, `ganda`, `geser`, atau `bukaan`. Bernilai `null` untuk penghubung tangga/lift antar lantai |
 | `elements/{id}` | `jenis` (`jendela`, `kolom`, atau `furnitur`) dan `lantai_id`. Jendela: `room_id`, `sisi`, `offset`, `lebar`. Kolom: `x`, `y`, `w`, `h`. Furnitur: `room_id`, `model`, `x`, `y` (relatif ruangan), `rotasi` |
-| `meta/counters` | `rooms`, `floors`: ID numerik terakhir |
+| `meta/counters` | `rooms`, `floors`, `offices`: ID numerik terakhir |
 
 Aplikasi berjalan tanpa login. `firestore.rules` membatasi bentuk dan rentang data: posisi kelipatan 0,5 m, luas sama dengan panjang × lebar, occupancy di antara 0 dan kapasitas, ID berurutan, pintu satu lantai punya posisi, dan pintu antar lantai hanya antara tangga/lift. Ruangan yang bertumpuk dicegah di aplikasi. Untuk memasang rules:
 

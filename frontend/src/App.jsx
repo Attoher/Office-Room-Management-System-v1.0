@@ -8,6 +8,9 @@ import { Card } from './components/ui/Card';
 import EmptyState from './components/ui/EmptyState';
 import ManagementView from './features/management/ManagementView';
 import MonitoringView from './features/monitoring/MonitoringView';
+import OfficeOnboarding from './features/offices/OfficeOnboarding';
+import OfficeSwitcher from './features/offices/OfficeSwitcher';
+import { officeUrl, useActiveOffice } from './hooks/useActiveOffice';
 import { useOfficeData } from './hooks/useOfficeData';
 
 // Halaman jalur (denah + pencarian rute) baru dimuat saat dibuka
@@ -37,12 +40,16 @@ function Loading({ label }) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState(readTabFromPath);
-  const { floors, rooms, roomsById, doors, elements, status, error } = useOfficeData();
+  const data = useOfficeData();
+  const { status, error } = data;
+  // Semua halaman hanya melihat isi kantor yang sedang dipilih
+  const active = useActiveOffice(data);
+  const { floors, floorIds, rooms, roomsById, doors, elements } = active;
 
   useEffect(() => {
     // Path tidak dikenal (termasuk "/") dirapikan ke tab yang ditampilkan
     if (window.location.pathname !== `/${activeTab}`) {
-      window.history.replaceState(null, '', `/${activeTab}`);
+      window.history.replaceState(null, '', `/${activeTab}${window.location.search}`);
     }
     const onPopState = () => setActiveTab(readTabFromPath());
     window.addEventListener('popstate', onPopState);
@@ -52,7 +59,8 @@ export default function App() {
 
   const navigate = (tabId) => {
     if (tabId === activeTab) return;
-    window.history.pushState(null, '', `/${tabId}`);
+    // Kantor yang dipilih ikut di URL; pilihan khusus halaman (mis. asal/tujuan jalur) tidak
+    window.history.pushState(null, '', officeUrl(`/${tabId}`, active.officeId));
     setActiveTab(tabId);
     window.scrollTo({ top: 0 });
   };
@@ -71,12 +79,26 @@ export default function App() {
         />
       </Card>
     );
+  } else if (data.offices.length === 0) {
+    content = <OfficeOnboarding onCreated={active.selectOffice} />;
   } else if (activeTab === 'monitoring') {
-    content = <MonitoringView floors={floors} rooms={rooms} doors={doors} onNavigate={navigate} />;
+    content = (
+      <MonitoringView
+        key={active.officeId}
+        office={active.office}
+        floors={floors}
+        rooms={rooms}
+        doors={doors}
+        onNavigate={navigate}
+      />
+    );
   } else if (activeTab === 'management') {
     content = (
       <ManagementView
+        key={active.officeId}
+        office={active.office}
         floors={floors}
+        floorIds={floorIds}
         rooms={rooms}
         roomsById={roomsById}
         doors={doors}
@@ -87,6 +109,7 @@ export default function App() {
     content = (
       <Suspense fallback={<Loading label="Memuat peta ruangan…" />}>
         <PathfindingView
+          key={active.officeId}
           floors={floors}
           rooms={rooms}
           roomsById={roomsById}
@@ -100,7 +123,23 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <AppHeader tabs={TABS} activeTab={activeTab} onTabChange={navigate} status={status} />
+      <AppHeader
+        tabs={TABS}
+        activeTab={activeTab}
+        onTabChange={navigate}
+        status={status}
+        officeSwitcher={
+          data.offices.length > 0 && (
+            <OfficeSwitcher
+              offices={data.offices}
+              floors={data.floors}
+              office={active.office}
+              summaries={active.summaries}
+              onSelect={active.selectOffice}
+            />
+          )
+        }
+      />
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">{content}</main>
       <footer className="border-t border-slate-200 py-4 text-center text-xs text-slate-500">
         Office Room Management · ATHA ITS · {new Date().getFullYear()}

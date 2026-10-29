@@ -74,23 +74,33 @@ function validateGeometry(rect, allRooms) {
   return snapped;
 }
 
-async function assertNameAvailable(nama_ruangan, exceptId) {
+/**
+ * Nama ruangan unik per kantor: `floorIds` = lantai milik kantor yang sama.
+ * Tanpa `floorIds`, nama dicek terhadap semua ruangan.
+ */
+async function assertNameAvailable(nama_ruangan, exceptId, floorIds) {
   const snapshot = await getDocs(
-    query(roomsCol, where('nama_key', '==', toNameKey(nama_ruangan)), limit(2)),
+    query(roomsCol, where('nama_key', '==', toNameKey(nama_ruangan)), limit(50)),
   );
-  if (snapshot.docs.some((d) => d.data().id !== exceptId)) {
+  const clash = snapshot.docs.some(
+    (d) => d.data().id !== exceptId && (!floorIds || floorIds.has(d.data().lantai_id)),
+  );
+  if (clash) {
     throw new AppError('Nama ruangan sudah dipakai.', {
       fieldErrors: { nama_ruangan: 'Nama ruangan sudah dipakai' },
     });
   }
 }
 
-/** Buat ruangan baru dari informasi + kotak di denah ({ lantai_id, x, y, w, h }). */
-export async function createRoom(info, rect, allRooms) {
+/**
+ * Buat ruangan baru dari informasi + kotak di denah ({ lantai_id, x, y, w, h }).
+ * `floorIds`: lantai milik kantor yang sama, untuk cek nama unik per kantor.
+ */
+export async function createRoom(info, rect, allRooms, { floorIds } = {}) {
   try {
     const value = validateInfo(info);
     const geometry = validateGeometry(rect, allRooms);
-    await assertNameAvailable(value.nama_ruangan);
+    await assertNameAvailable(value.nama_ruangan, undefined, floorIds);
 
     return await runTransaction(db, async (tx) => {
       const counters = await tx.get(countersRef);
@@ -114,10 +124,10 @@ export async function createRoom(info, rect, allRooms) {
   }
 }
 
-export async function updateRoomInfo(room, info) {
+export async function updateRoomInfo(room, info, { floorIds } = {}) {
   try {
     const value = validateInfo(info, { currentOccupancy: room.occupancy });
-    await assertNameAvailable(value.nama_ruangan, room.id);
+    await assertNameAvailable(value.nama_ruangan, room.id, floorIds);
     await updateDoc(roomRef(room.id), {
       ...value,
       nama_key: toNameKey(value.nama_ruangan),

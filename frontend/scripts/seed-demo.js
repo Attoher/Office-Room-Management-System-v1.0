@@ -4,6 +4,7 @@ import { collection, getDocsFromServer } from 'firebase/firestore';
 import { db } from '../src/services/firebase.js';
 import { createDoor } from '../src/services/doorService.js';
 import { createFloor } from '../src/services/floorService.js';
+import { createOffice } from '../src/services/officeService.js';
 import { createRoom, setOccupancy } from '../src/services/roomService.js';
 
 // [nama, tipe, x, y, panjang, lebar, kapasitas, occupancy] — satuan meter
@@ -78,6 +79,15 @@ if (!existing.empty) {
 }
 
 // Lantai yang sudah ada (mis. dari percobaan sebelumnya) dipakai ulang berdasarkan nama
+// Kantor contoh dipakai ulang bila sudah ada
+const existingOffices = (await getDocsFromServer(collection(db, 'offices'))).docs.map((d) =>
+  d.data(),
+);
+const officeId =
+  existingOffices.find((o) => o.nama === 'Kantor Pusat')?.id ??
+  (await createOffice({ nama: 'Kantor Pusat', alamat: '' }));
+const floorIds = new Set();
+
 const existingFloors = (await getDocsFromServer(collection(db, 'floors'))).docs.map((d) =>
   d.data(),
 );
@@ -89,12 +99,14 @@ const byName = (name) => rooms.find((room) => room.nama_ruangan === name);
 
 for (const floor of FLOORS) {
   const lantai_id =
-    existingFloors.find((f) => f.nama === floor.nama)?.id ?? (await createFloor(floor.nama));
+    existingFloors.find((f) => f.nama === floor.nama && f.office_id === officeId)?.id ??
+    (await createFloor(floor.nama, officeId));
+  floorIds.add(lantai_id);
   console.log(`${floor.nama} (id ${lantai_id})`);
 
   for (const [nama_ruangan, tipe, x, y, w, h, kapasitas_max, occupancy] of floor.rooms) {
     const rect = { lantai_id, x, y, w, h };
-    const id = await createRoom({ nama_ruangan, tipe, kapasitas_max }, rect, rooms);
+    const id = await createRoom({ nama_ruangan, tipe, kapasitas_max }, rect, rooms, { floorIds });
     const room = { id, nama_ruangan, tipe, kapasitas_max, occupancy: 0, ...rect };
     rooms.push(room);
     if (occupancy > 0) await setOccupancy(room, occupancy);

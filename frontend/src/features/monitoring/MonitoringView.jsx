@@ -15,7 +15,7 @@ import { resetAllOccupancy } from '../../services/roomService';
 import RoomCard from './RoomCard';
 import StatsPanel from './StatsPanel';
 
-export default function MonitoringView({ floors, rooms, doors, onNavigate }) {
+export default function MonitoringView({ office, floors, rooms, doors, onNavigate }) {
   const confirm = useConfirm();
   const toast = useToast();
   const [search, setSearch] = useState('');
@@ -61,7 +61,7 @@ export default function MonitoringView({ floors, rooms, doors, onNavigate }) {
       <Card>
         <EmptyState
           icon={Building2}
-          title="Belum ada ruangan"
+          title={`${office?.nama ?? 'Kantor ini'} belum punya ruangan`}
           description="Gambar ruangan di editor denah (menu Manajemen) untuk mulai memantau occupancy."
           action={<Button onClick={() => onNavigate('management')}>Tambah ruangan</Button>}
         />

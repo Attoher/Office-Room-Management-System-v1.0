@@ -39,17 +39,42 @@ service cloud.firestore {
         && data.updated_at == request.time;
     }
 
+    function officeExists(id) {
+      return id is int && exists(/databases/$(database)/documents/offices/$(string(id)));
+    }
+
+    // Kantor (gedung). Isinya: lantai → ruangan → pintu & elemen.
+    match /offices/{officeId} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['id', 'nama', 'alamat', 'created_at'])
+        && request.resource.data.id is int && string(request.resource.data.id) == officeId
+        && validOffice(request.resource.data)
+        && request.resource.data.created_at == request.time
+        && countersAfter().offices == request.resource.data.id;
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nama', 'alamat'])
+        && validOffice(request.resource.data);
+      allow delete: if true;
+    }
+
+    function validOffice(o) {
+      return o.nama is string && o.nama.size() > 0 && o.nama.size() <= 60
+        && o.alamat is string && o.alamat.size() <= 120;
+    }
+
     match /floors/{floorId} {
       allow read: if true;
-      allow create: if request.resource.data.keys().hasOnly(['id', 'nama', 'created_at'])
+      allow create: if request.resource.data.keys().hasOnly(['id', 'office_id', 'nama', 'created_at'])
         && request.resource.data.id is int && string(request.resource.data.id) == floorId
+        && officeExists(request.resource.data.office_id)
         && request.resource.data.nama is string
         && request.resource.data.nama.size() > 0 && request.resource.data.nama.size() <= 40
         && request.resource.data.created_at == request.time
         && countersAfter().floors == request.resource.data.id;
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nama'])
+      // Ganti nama, atau pindah/tetapkan kantor (termasuk lantai lama yang belum punya kantor)
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nama', 'office_id'])
         && request.resource.data.nama is string
-        && request.resource.data.nama.size() > 0 && request.resource.data.nama.size() <= 40;
+        && request.resource.data.nama.size() > 0 && request.resource.data.nama.size() <= 40
+        && officeExists(request.resource.data.office_id);
       allow delete: if true;
     }
 
@@ -150,11 +175,12 @@ service cloud.firestore {
     // Counter ID hanya boleh naik satu per satu
     match /meta/counters {
       allow read: if true;
-      allow create: if request.resource.data.keys().hasOnly(['rooms', 'floors'])
+      allow create: if request.resource.data.keys().hasOnly(['rooms', 'floors', 'offices'])
         && request.resource.data.get('rooms', 0) in [0, 1]
-        && request.resource.data.get('floors', 0) in [0, 1];
-      allow update: if request.resource.data.keys().hasOnly(['rooms', 'floors'])
-        && stepsByOne('rooms') && stepsByOne('floors');
+        && request.resource.data.get('floors', 0) in [0, 1]
+        && request.resource.data.get('offices', 0) in [0, 1];
+      allow update: if request.resource.data.keys().hasOnly(['rooms', 'floors', 'offices'])
+        && stepsByOne('rooms') && stepsByOne('floors') && stepsByOne('offices');
       allow delete: if false;
     }
 

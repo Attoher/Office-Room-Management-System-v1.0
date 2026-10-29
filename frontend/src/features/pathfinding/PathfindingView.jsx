@@ -84,9 +84,12 @@ export default function PathfindingView({ floors, rooms, roomsById, doors, eleme
   const routeFloors = [...segments.keys()];
 
   useEffect(() => {
-    const params = new URLSearchParams();
+    // Parameter lain (mis. ?kantor=) dipertahankan
+    const params = new URLSearchParams(window.location.search);
     if (startId) params.set('asal', startId);
+    else params.delete('asal');
     if (targetId) params.set('tujuan', targetId);
+    else params.delete('tujuan');
     const query = params.toString();
     window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
   }, [startId, targetId]);

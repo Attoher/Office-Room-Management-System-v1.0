@@ -30,7 +30,17 @@ const slug = (text) =>
     .replace(/^-|-$/g, '');
 
 /** Tombol export & import DXF (AutoCAD) untuk editor denah. */
-export default function DxfTools({ floor, floors, rooms, roomsById, doors, elements, onImported }) {
+export default function DxfTools({
+  office,
+  floor,
+  floors,
+  floorIds,
+  rooms,
+  roomsById,
+  doors,
+  elements,
+  onImported,
+}) {
   const toast = useToast();
   const [open, setOpen] = useState(false);
 
@@ -63,6 +73,8 @@ export default function DxfTools({ floor, floors, rooms, roomsById, doors, eleme
       </Button>
       {open && (
         <ImportDialog
+          office={office}
+          floorIds={floorIds}
           floors={floors}
           rooms={rooms}
           onClose={() => setOpen(false)}
@@ -76,7 +88,7 @@ export default function DxfTools({ floor, floors, rooms, roomsById, doors, eleme
   );
 }
 
-function ImportDialog({ floors, rooms, onClose, onImported }) {
+function ImportDialog({ office, floorIds, floors, rooms, onClose, onImported }) {
   const toast = useToast();
   const [file, setFile] = useState(null); // { name, dxf, analysis }
   const [options, setOptions] = useState(null);
@@ -112,7 +124,9 @@ function ImportDialog({ floors, rooms, onClose, onImported }) {
   const startImport = async () => {
     setProgress({ done: 0, total: plan.rooms.length });
     try {
-      const lantai_id = await createFloor(floorName || `Lantai ${floors.length + 1}`);
+      const lantai_id = await createFloor(floorName || `Lantai ${floors.length + 1}`, office.id);
+      // Nama ruangan unik per kantor, termasuk lantai baru ini
+      const scope = { floorIds: new Set([...floorIds, lantai_id]) };
       const existingNames = new Set(rooms.map((r) => toNameKey(r.nama_ruangan)));
       const created = [];
       const skipped = [];
@@ -135,6 +149,7 @@ function ImportDialog({ floors, rooms, onClose, onImported }) {
               { nama_ruangan: nama, tipe: 'ruangan', kapasitas_max },
               rect,
               created,
+              scope,
             );
             const room = {
               id,

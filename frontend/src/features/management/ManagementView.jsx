@@ -12,7 +12,15 @@ import FloorTabs from './FloorTabs';
 import RoomInspector from './RoomInspector';
 import RoomsSection from './RoomsSection';
 
-export default function ManagementView({ floors, rooms, roomsById, doors, elements }) {
+export default function ManagementView({
+  office,
+  floors,
+  floorIds,
+  rooms,
+  roomsById,
+  doors,
+  elements,
+}) {
   const toast = useToast();
   const [floorChoice, setFloorChoice] = useState(null);
   // Yang dipilih di editor: satu ruangan atau satu elemen (jendela/kolom/furnitur)
@@ -36,7 +44,7 @@ export default function ManagementView({ floors, rooms, roomsById, doors, elemen
     const createFirst = async () => {
       setCreating(true);
       try {
-        setFloorChoice(await createFloor('Lantai 1'));
+        setFloorChoice(await createFloor('Lantai 1', office.id));
       } catch (error) {
         toast.error(error.message);
       } finally {
@@ -47,7 +55,7 @@ export default function ManagementView({ floors, rooms, roomsById, doors, elemen
       <Card>
         <EmptyState
           icon={Layers}
-          title="Belum ada lantai"
+          title={`${office.nama} belum punya lantai`}
           description="Buat lantai pertama, lalu gambar ruangan-ruangannya di editor denah atau import dari AutoCAD (DXF)."
           action={
             <Button loading={creating} onClick={createFirst}>
@@ -72,6 +80,7 @@ export default function ManagementView({ floors, rooms, roomsById, doors, elemen
                 floors={floors}
                 rooms={rooms}
                 floorId={floorId}
+                officeId={office.id}
                 onSelect={(id) => {
                   setFloorChoice(id);
                   setSelection(null);
@@ -85,6 +94,7 @@ export default function ManagementView({ floors, rooms, roomsById, doors, elemen
               key={floorId}
               floorId={floorId}
               floors={floors}
+              floorIds={floorIds}
               rooms={rooms}
               roomsById={roomsById}
               doors={doors}
@@ -95,8 +105,10 @@ export default function ManagementView({ floors, rooms, roomsById, doors, elemen
               onSelectElement={selectElementId}
               toolbarExtra={
                 <DxfTools
+                  office={office}
                   floor={floors.find((f) => f.id === floorId)}
                   floors={floors}
+                  floorIds={floorIds}
                   rooms={rooms}
                   roomsById={roomsById}
                   doors={doors}
@@ -130,6 +142,7 @@ export default function ManagementView({ floors, rooms, roomsById, doors, elemen
                 doors={doors}
                 elements={elements}
                 floors={floors}
+                floorIds={floorIds}
                 onDeleted={() => setSelection(null)}
                 onSelectElement={selectElementId}
               />

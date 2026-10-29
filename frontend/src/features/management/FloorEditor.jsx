@@ -80,6 +80,7 @@ function LayerToggle({ checked, onChange, children }) {
 export default function FloorEditor({
   floorId,
   floors,
+  floorIds,
   rooms,
   roomsById,
   doors,
@@ -297,7 +298,7 @@ export default function FloorEditor({
   };
 
   const handleCreate = async (values) => {
-    const id = await createRoom(values, { ...draft, lantai_id: floorId }, rooms);
+    const id = await createRoom(values, { ...draft, lantai_id: floorId }, rooms, { floorIds });
     toast.success(`"${values.nama_ruangan.trim()}" ditambahkan.`);
     setDraft(null);
     setMode('select');

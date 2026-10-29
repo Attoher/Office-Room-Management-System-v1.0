@@ -7,7 +7,14 @@ import { useConfirm, useToast } from '../../components/ui/feedbackContext';
 import { createFloor, deleteFloor, renameFloor } from '../../services/floorService';
 
 /** Pilihan lantai + tambah/ganti nama/hapus lantai. */
-export default function FloorTabs({ floors, rooms, floorId, onSelect, editable = false }) {
+export default function FloorTabs({
+  floors,
+  rooms,
+  floorId,
+  officeId,
+  onSelect,
+  editable = false,
+}) {
   const toast = useToast();
   const confirm = useConfirm();
   const [dialog, setDialog] = useState(null); // { mode: 'create' | 'rename', nama }
@@ -19,7 +26,7 @@ export default function FloorTabs({ floors, rooms, floorId, onSelect, editable =
     setSaving(true);
     try {
       if (dialog.mode === 'create') {
-        const id = await createFloor(dialog.nama);
+        const id = await createFloor(dialog.nama, officeId);
         onSelect(id);
         toast.success(`${dialog.nama.trim()} ditambahkan.`);
       } else {

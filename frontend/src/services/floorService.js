@@ -12,7 +12,7 @@ import {
 import { db } from './firebase';
 import { AppError, toAppError } from './errors';
 
-// floors/{id}: { id, nama, created_at } — urutan lantai mengikuti id
+// floors/{id}: { id, office_id, nama, created_at } — urutan lantai mengikuti id
 const floorsCol = collection(db, 'floors');
 const countersRef = doc(db, 'meta', 'counters');
 
@@ -28,19 +28,32 @@ function validName(nama) {
 export function subscribeFloors(onData, onError) {
   return onSnapshot(
     query(floorsCol, orderBy('id')),
-    (snapshot) => onData(snapshot.docs.map((d) => ({ id: d.data().id, nama: d.data().nama }))),
+    (snapshot) =>
+      onData(
+        snapshot.docs.map((d) => ({
+          id: d.data().id,
+          office_id: d.data().office_id ?? null,
+          nama: d.data().nama,
+        })),
+      ),
     (error) => onError(toAppError(error)),
   );
 }
 
-export async function createFloor(nama) {
+export async function createFloor(nama, officeId) {
   const value = validName(nama);
+  if (!Number.isInteger(officeId)) throw new AppError('Pilih kantor terlebih dahulu.');
   try {
     return await runTransaction(db, async (tx) => {
       const counters = await tx.get(countersRef);
       const id = (counters.data()?.floors ?? 0) + 1;
       tx.set(countersRef, { floors: id }, { merge: true });
-      tx.set(doc(floorsCol, String(id)), { id, nama: value, created_at: serverTimestamp() });
+      tx.set(doc(floorsCol, String(id)), {
+        id,
+        office_id: officeId,
+        nama: value,
+        created_at: serverTimestamp(),
+      });
       return id;
     });
   } catch (error) {
@@ -52,6 +65,15 @@ export async function renameFloor(id, nama) {
   const value = validName(nama);
   try {
     await updateDoc(doc(floorsCol, String(id)), { nama: value });
+  } catch (error) {
+    throw toAppError(error);
+  }
+}
+
+/** Pindahkan lantai (beserta isinya) ke kantor lain. */
+export async function moveFloorToOffice(id, officeId) {
+  try {
+    await updateDoc(doc(floorsCol, String(id)), { office_id: officeId });
   } catch (error) {
     throw toAppError(error);
   }
