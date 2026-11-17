@@ -24,3 +24,19 @@
     animation: none;
   }
 }
+
+/* Export PDF (dialog cetak): A4, warna status & denah ikut tercetak, tanpa bayangan kartu */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  body {
+    background: #fff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  section {
+    box-shadow: none !important;
+  }
+}

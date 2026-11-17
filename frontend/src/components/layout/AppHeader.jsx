@@ -16,7 +16,7 @@ export default function AppHeader({
 }) {
   const statusView = STATUS_VIEW[status];
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur print:hidden">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <div className="rounded-lg bg-blue-600 p-2 text-white">

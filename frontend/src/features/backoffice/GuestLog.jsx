@@ -23,10 +23,16 @@ const STATUS_BADGE = {
 // <input type="date"> memakai format YYYY-MM-DD menurut waktu lokal
 const toDateInput = (date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-const fromDateInput = (text) => {
+const formatDay = (text) =>
+  fromDateInput(text).toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+function fromDateInput(text) {
   const [y, m, d] = text.split('-').map(Number);
   return new Date(y, m - 1, d);
-};
+}
 
 function defaultRange() {
   const today = startOfDay();
@@ -44,12 +50,24 @@ function downloadText(text, filename) {
   URL.revokeObjectURL(url);
 }
 
-/** Riwayat tamu semua kantor: filter tanggal, kantor, kata kunci, export CSV, dan hapus. */
-export default function GuestLog({ offices, activeOfficeId }) {
+/**
+ * Riwayat tamu: filter tanggal, kantor, kata kunci, export CSV, dan hapus. Dengan `room` hanya
+ * tamu yang berangkat dari atau menuju ruangan itu; klik baris memanggil `onSelectVisit`.
+ */
+export default function GuestLog({
+  offices,
+  activeOfficeId,
+  room = null,
+  selectedVisitId = null,
+  onSelectVisit,
+}) {
   const toast = useToast();
   const confirm = useConfirm();
   const [range, setRange] = useState(defaultRange);
-  const [officeFilter, setOfficeFilter] = useState(String(activeOfficeId ?? 'semua'));
+  const [officeFilter, setOfficeFilter] = useState(
+    room ? 'semua' : String(activeOfficeId ?? 'semua'),
+  );
+  const showOffice = !room && officeFilter === 'semua';
   const [search, setSearch] = useState('');
   const [visits, setVisits] = useState(null);
   const [error, setError] = useState(null);
@@ -78,10 +96,11 @@ export default function GuestLog({ offices, activeOfficeId }) {
     () =>
       (visits ?? []).filter(
         (v) =>
+          (room ? v.tujuan_id === room.id || v.asal_id === room.id : true) &&
           (officeFilter === 'semua' || v.office_id === Number(officeFilter)) &&
           matchesVisit(v, search),
       ),
-    [visits, officeFilter, search],
+    [visits, officeFilter, search, room],
   );
 
   const instanceCount = new Set(shown.map((v) => v.instansi.toLowerCase())).size;
@@ -103,7 +122,10 @@ export default function GuestLog({ offices, activeOfficeId }) {
   };
 
   const exportCsv = () => {
-    downloadText(visitsToCsv(shown, officeName), `riwayat-tamu-${range.from}_${range.to}.csv`);
+    const prefix = room
+      ? `riwayat-tamu-${room.nama_ruangan.toLowerCase().replace(/\s+/g, '-')}`
+      : 'riwayat-tamu';
+    downloadText(visitsToCsv(shown, officeName), `${prefix}-${range.from}_${range.to}.csv`);
   };
 
   let body;
@@ -125,24 +147,35 @@ export default function GuestLog({ offices, activeOfficeId }) {
     );
   } else {
     body = (
-      <div className="-mx-5 overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left text-sm">
+      <div className="-mx-5 overflow-x-auto print:mx-0 print:overflow-visible">
+        <table className="w-full min-w-[760px] text-left text-sm print:min-w-0">
           <thead className="border-y border-slate-100 bg-slate-50 text-xs font-medium uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-5 py-2.5">Waktu</th>
               <th className="px-3 py-2.5">Tamu</th>
-              {officeFilter === 'semua' && <th className="px-3 py-2.5">Kantor</th>}
+              {showOffice && <th className="px-3 py-2.5">Kantor</th>}
               <th className="px-3 py-2.5">Jalur</th>
               <th className="px-3 py-2.5 text-right">Jarak</th>
               <th className="px-3 py-2.5">Status</th>
-              <th className="px-5 py-2.5">
+              <th className="px-5 py-2.5 print:hidden">
                 <span className="sr-only">Aksi</span>
               </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {shown.map((visit) => (
-              <tr key={visit.id} className="align-top">
+              <tr
+                key={visit.id}
+                onClick={onSelectVisit ? () => onSelectVisit(visit) : undefined}
+                aria-selected={onSelectVisit ? visit.id === selectedVisitId : undefined}
+                className={`align-top print:break-inside-avoid ${onSelectVisit ? 'cursor-pointer' : ''} ${
+                  visit.id === selectedVisitId
+                    ? 'bg-blue-50'
+                    : onSelectVisit
+                      ? 'hover:bg-slate-50'
+                      : ''
+                }`}
+              >
                 <td className="whitespace-nowrap px-5 py-3 tabular-nums text-slate-600">
                   {formatDateTime(visit.created_at)}
                 </td>
@@ -150,7 +183,7 @@ export default function GuestLog({ offices, activeOfficeId }) {
                   <p className="font-medium text-slate-900">{visit.nama}</p>
                   <p className="text-xs text-slate-500">{visit.instansi}</p>
                 </td>
-                {officeFilter === 'semua' && (
+                {showOffice && (
                   <td className="px-3 py-3 text-slate-600">{officeName(visit.office_id)}</td>
                 )}
                 <td className="px-3 py-3 text-slate-700">
@@ -168,12 +201,15 @@ export default function GuestLog({ offices, activeOfficeId }) {
                     {VISIT_STATUS_LABEL[visit.status] ?? visit.status}
                   </span>
                 </td>
-                <td className="px-5 py-2 text-right">
+                <td className="px-5 py-2 text-right print:hidden">
                   <Button
                     variant="ghost"
                     size="icon"
                     icon={Trash2}
-                    onClick={() => remove(visit)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      remove(visit);
+                    }}
                     className="hover:bg-red-50 hover:text-red-600"
                     aria-label={`Hapus catatan ${visit.nama}`}
                   />
@@ -187,28 +223,36 @@ export default function GuestLog({ offices, activeOfficeId }) {
   }
 
   return (
-    <Card>
+    <Card className="print:break-inside-avoid">
       <CardHeader
-        title="Riwayat tamu"
+        title={room ? 'Riwayat tamu ruangan ini' : 'Riwayat tamu'}
         description={
           visits && rangeValid
-            ? `${shown.length} kunjungan · ${instanceCount} instansi`
+            ? `${shown.length} kunjungan · ${instanceCount} instansi · ${formatDay(range.from)} – ${formatDay(range.to)}${
+                onSelectVisit && shown.length > 0
+                  ? '. Klik tamu untuk melihat jalurnya di denah.'
+                  : ''
+              }`
             : 'Dicatat dari halaman Jalur Tamu'
         }
         action={
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={Download}
-            disabled={shown.length === 0}
-            onClick={exportCsv}
-          >
-            Export CSV
-          </Button>
+          <span className="print:hidden">
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={Download}
+              disabled={shown.length === 0}
+              onClick={exportCsv}
+            >
+              Export CSV
+            </Button>
+          </span>
         }
       />
       <CardBody>
-        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div
+          className={`mb-4 grid grid-cols-1 gap-3 print:hidden sm:grid-cols-2 ${room ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}
+        >
           <Field label="Dari tanggal">
             {(id) => (
               <Input
@@ -231,22 +275,24 @@ export default function GuestLog({ offices, activeOfficeId }) {
               />
             )}
           </Field>
-          <Field label="Kantor">
-            {(id) => (
-              <Select
-                id={id}
-                value={officeFilter}
-                onChange={(e) => setOfficeFilter(e.target.value)}
-              >
-                <option value="semua">Semua kantor</option>
-                {offices.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.nama}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </Field>
+          {!room && (
+            <Field label="Kantor">
+              {(id) => (
+                <Select
+                  id={id}
+                  value={officeFilter}
+                  onChange={(e) => setOfficeFilter(e.target.value)}
+                >
+                  <option value="semua">Semua kantor</option>
+                  {offices.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.nama}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          )}
           <Field label="Cari">
             {(id) => (
               <div className="relative">

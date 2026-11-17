@@ -1,29 +1,31 @@
 import { useEffect, useState } from 'react';
-import { Building, Gauge, History, Loader2, LogOut } from 'lucide-react';
+import { Building, DoorOpen, Gauge, Loader2, LogOut } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { signOutAdmin, subscribeAdmin } from '../../services/authService';
 import AdminLogin from './AdminLogin';
-import GuestLog from './GuestLog';
 import OfficePicTable from './OfficePicTable';
+import RoomDirectory from './RoomDirectory';
 import StatusRulesForm from './StatusRulesForm';
 
 const SECTIONS = [
-  { id: 'tamu', label: 'Riwayat tamu', icon: History },
+  { id: 'ruangan', label: 'Ruangan', icon: DoorOpen },
   { id: 'kantor', label: 'Kantor & PIC', icon: Building },
   { id: 'status', label: 'Aturan status', icon: Gauge },
 ];
 
-/** Halaman admin: riwayat tamu semua kantor, data PIC kantor, dan batas warna status. */
+/** Halaman admin: ruangan (detail, denah, riwayat tamu, PDF), PIC kantor, dan batas warna status. */
 export default function BackOfficeView({
   offices,
   floors,
   rooms,
+  doors,
+  elements,
   summaries,
   activeOfficeId,
   statusRules,
   onSelectOffice,
 }) {
-  const [section, setSection] = useState('tamu');
+  const [section, setSection] = useState('ruangan');
   const [admin, setAdmin] = useState(null); // null = memeriksa sesi
   const realOffices = offices.filter((o) => !o.virtual);
 
@@ -41,11 +43,11 @@ export default function BackOfficeView({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Back Office</h2>
           <p className="text-sm text-slate-500">
-            Riwayat tamu, penanggung jawab (PIC) kantor, dan aturan warna status ruangan.
+            Ruangan beserta riwayat tamunya, penanggung jawab (PIC) kantor, dan aturan warna status.
           </p>
         </div>
         <Button variant="secondary" size="sm" icon={LogOut} onClick={() => signOutAdmin()}>
@@ -56,7 +58,7 @@ export default function BackOfficeView({
       <div
         role="tablist"
         aria-label="Bagian back office"
-        className="inline-flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1"
+        className="inline-flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1 print:hidden"
       >
         {SECTIONS.map(({ id, label, icon: Icon }) => (
           <button
@@ -77,7 +79,16 @@ export default function BackOfficeView({
         ))}
       </div>
 
-      {section === 'tamu' && <GuestLog offices={offices} activeOfficeId={activeOfficeId} />}
+      {section === 'ruangan' && (
+        <RoomDirectory
+          offices={offices}
+          floors={floors}
+          rooms={rooms}
+          doors={doors}
+          elements={elements}
+          activeOfficeId={activeOfficeId}
+        />
+      )}
       {section === 'kantor' && (
         <OfficePicTable
           offices={realOffices}

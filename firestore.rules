@@ -105,8 +105,8 @@ service cloud.firestore {
       allow update: if false;
       allow create: if request.resource.data.keys().hasOnly(['nama', 'instansi', 'office_id',
                                                               'asal_id', 'asal_nama', 'tujuan_id',
-                                                              'tujuan_nama', 'jarak', 'status',
-                                                              'created_at'])
+                                                              'tujuan_nama', 'jarak', 'jalur',
+                                                              'status', 'created_at'])
         && request.resource.data.nama is string
         && request.resource.data.nama.size() > 0 && request.resource.data.nama.size() <= 60
         && request.resource.data.instansi is string
@@ -117,6 +117,9 @@ service cloud.firestore {
         && request.resource.data.tujuan_nama is string && request.resource.data.tujuan_nama.size() <= 60
         && (request.resource.data.jarak == null
             || (request.resource.data.jarak is number && request.resource.data.jarak >= 0))
+        // Urutan ID ruangan yang dilewati (opsional; catatan lama tidak punya)
+        && (!request.resource.data.keys().hasAny(['jalur'])
+            || (request.resource.data.jalur is list && request.resource.data.jalur.size() <= 60))
         && request.resource.data.status in ['aman', 'penuh', 'tidak-ada-jalur']
         && request.resource.data.created_at == request.time;
     }

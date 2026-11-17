@@ -118,6 +118,8 @@ export default function App() {
           offices={data.offices}
           floors={data.floors}
           rooms={data.rooms}
+          doors={data.doors}
+          elements={data.elements}
           summaries={active.summaries}
           activeOfficeId={active.officeId}
           statusRules={data.statusRules}
@@ -167,8 +169,10 @@ export default function App() {
             )
           }
         />
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">{content}</main>
-        <footer className="border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 print:max-w-none print:p-0 sm:px-6">
+          {content}
+        </main>
+        <footer className="border-t border-slate-200 py-4 text-center text-xs text-slate-500 print:hidden">
           Office Room Management · ATHA ITS · {new Date().getFullYear()}
         </footer>
         {!isBackOffice && <IntroDialog />}

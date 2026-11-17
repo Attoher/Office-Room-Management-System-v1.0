@@ -15,7 +15,8 @@ import { db } from './firebase';
 import { AppError, toAppError } from './errors';
 
 // guest_visits/{auto}: { nama, instansi, office_id, asal_id, asal_nama, tujuan_id, tujuan_nama,
-//                        jarak (meter, null bila tidak ada jalur), status, created_at }
+//                        jarak (meter, null bila tidak ada jalur), jalur (ID ruangan yang dilewati),
+//                        status, created_at }
 const visitsCol = collection(db, 'guest_visits');
 
 function fromSnapshot(d) {
@@ -31,6 +32,8 @@ function fromSnapshot(d) {
     tujuan_id: data.tujuan_id,
     tujuan_nama: data.tujuan_nama,
     jarak: data.jarak ?? null,
+    // Catatan lama belum menyimpan jalur; dihitung ulang saat ditampilkan
+    jalur: Array.isArray(data.jalur) ? data.jalur : null,
     status: data.status,
     created_at: data.created_at?.toDate() ?? null,
   };
@@ -66,6 +69,7 @@ export async function recordGuestVisit({ guest, officeId, start, target, plan, r
       tujuan_id: target.id,
       tujuan_nama: target.nama_ruangan,
       jarak: route ? Math.round(route.length * 10) / 10 : null,
+      ...(route && { jalur: route.roomIds }),
       status: plan.status,
       created_at: serverTimestamp(),
     });
