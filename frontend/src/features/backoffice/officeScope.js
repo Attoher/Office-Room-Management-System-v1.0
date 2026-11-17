@@ -1,3 +1,4 @@
+import { officeUrl } from '../../hooks/useActiveOffice';
 import { getOccupancyStatus, officeStatusRules, summarizeRooms } from '../../domain/occupancy';
 
 /**
@@ -23,6 +24,9 @@ export function officeScope(office, offices, { floors, rooms, doors = [], elemen
     totalArea: officeRooms.reduce((sum, r) => sum + r.luas, 0),
   };
 }
+
+/** Halaman publik (Monitoring) kantor ini; dibuka di tab baru dari Back Office. */
+export const publicOfficeUrl = (office) => officeUrl('/monitoring', office.id);
 
 export const formatNumber = (value) => value.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 

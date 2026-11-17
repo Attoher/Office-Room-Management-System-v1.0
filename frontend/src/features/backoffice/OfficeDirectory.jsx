@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building, ChevronRight, FileDown, Phone, Plus } from 'lucide-react';
+import { Building, ChevronRight, ExternalLink, FileDown, Phone, Plus } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
@@ -8,7 +8,7 @@ import { useToast } from '../../components/ui/feedbackContext';
 import { STATUS_ORDER, formatPercent, hasOwnRules, statusMeta } from '../../domain/occupancy';
 import { createOffice } from '../../services/officeService';
 import OfficeForm from '../offices/OfficeForm';
-import { formatNumber, officeScope } from './officeScope';
+import { formatNumber, officeScope, publicOfficeUrl } from './officeScope';
 import { printAsPdf } from './printPdf';
 
 /** Daftar semua kantor dengan PIC, isi, dan aturan statusnya. Klik kantor untuk detail. */
@@ -51,7 +51,7 @@ export default function OfficeDirectory({ offices, data, onOpen }) {
                   <th className="px-3 py-2.5">Isi kantor</th>
                   <th className="px-3 py-2.5">Status ruangan</th>
                   <th className="px-3 py-2.5">Aturan</th>
-                  <th className="w-8 px-3 py-2.5 print:hidden">
+                  <th className="w-20 px-3 py-2.5 print:hidden">
                     <span className="sr-only">Buka</span>
                   </th>
                 </tr>
@@ -142,8 +142,21 @@ export default function OfficeDirectory({ offices, data, onOpen }) {
                           {hasOwnRules(office) ? 'aturan sendiri' : 'bawaan'}
                         </p>
                       </td>
-                      <td className="px-3 py-3 text-slate-400 print:hidden">
-                        <ChevronRight className="size-4" aria-hidden />
+                      <td className="px-3 py-2 print:hidden">
+                        <span className="flex items-center justify-end gap-1">
+                          <a
+                            href={publicOfficeUrl(office)}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Lihat halaman publik kantor ini"
+                            aria-label={`Lihat halaman publik ${office.nama}`}
+                            className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-blue-600"
+                          >
+                            <ExternalLink className="size-4" aria-hidden />
+                          </a>
+                          <ChevronRight className="size-4 text-slate-400" aria-hidden />
+                        </span>
                       </td>
                     </tr>
                   );

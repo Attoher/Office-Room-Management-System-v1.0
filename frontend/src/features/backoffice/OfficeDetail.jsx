@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { ArrowLeft, FileDown, Pencil, Phone, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ExternalLink, FileDown, Pencil, Phone, Trash2, X } from 'lucide-react';
 import FloorPlanCanvas from '../../components/floorplan/FloorPlanCanvas';
 import Button from '../../components/ui/Button';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
@@ -16,7 +16,7 @@ import { deleteOffice, updateOffice } from '../../services/officeService';
 import OfficeForm from '../offices/OfficeForm';
 import GuestLog from './GuestLog';
 import OfficeRulesCard from './OfficeRulesCard';
-import { formatNumber, officeScope, whatsappNumber } from './officeScope';
+import { formatNumber, officeScope, publicOfficeUrl, whatsappNumber } from './officeScope';
 import { printAsPdf } from './printPdf';
 
 function DetailRow({ label, children }) {
@@ -170,6 +170,15 @@ export default function OfficeDetail({ office, offices, data, onBack }) {
             Semua kantor
           </Button>
           <div className="flex flex-wrap gap-2">
+            <a
+              href={publicOfficeUrl(office)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white px-2.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50"
+            >
+              <ExternalLink className="size-3.5" aria-hidden />
+              Lihat halaman publik
+            </a>
             <Button variant="secondary" size="sm" icon={Pencil} onClick={() => setEditing(true)}>
               Ubah data & PIC
             </Button>
