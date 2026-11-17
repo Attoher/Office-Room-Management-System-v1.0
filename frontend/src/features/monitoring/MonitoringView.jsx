@@ -5,12 +5,8 @@ import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
 import { Input, Select } from '../../components/ui/Field';
 import { useConfirm, useToast } from '../../components/ui/feedbackContext';
-import {
-  STATUS_META,
-  STATUS_ORDER,
-  getOccupancyStatus,
-  summarizeRooms,
-} from '../../domain/occupancy';
+import { useStatusRules } from '../../components/ui/statusRulesContext';
+import { STATUS_ORDER, summarizeRooms } from '../../domain/occupancy';
 import { resetAllOccupancy } from '../../services/roomService';
 import RoomCard from './RoomCard';
 import StatsPanel from './StatsPanel';
@@ -23,17 +19,18 @@ export default function MonitoringView({ office, floors, rooms, doors, onNavigat
   const [floorFilter, setFloorFilter] = useState('semua');
   const [resetting, setResetting] = useState(false);
 
-  const summary = useMemo(() => summarizeRooms(rooms), [rooms]);
+  const { rules, meta: statusMeta, statusOf } = useStatusRules();
+  const summary = useMemo(() => summarizeRooms(rooms, rules), [rooms, rules]);
 
   const visibleRooms = useMemo(() => {
     const keyword = search.trim().toLowerCase();
     return rooms.filter(
       (room) =>
         room.nama_ruangan.toLowerCase().includes(keyword) &&
-        (statusFilter === 'semua' || getOccupancyStatus(room) === statusFilter) &&
+        (statusFilter === 'semua' || statusOf(room) === statusFilter) &&
         (floorFilter === 'semua' || room.lantai_id === Number(floorFilter)),
     );
-  }, [rooms, search, statusFilter, floorFilter]);
+  }, [rooms, search, statusFilter, floorFilter, statusOf]);
 
   const floorName = (id) => floors.find((f) => f.id === id)?.nama ?? '';
 
@@ -130,7 +127,7 @@ export default function MonitoringView({ office, floors, rooms, doors, onNavigat
               <option value="semua">Semua status</option>
               {STATUS_ORDER.map((key) => (
                 <option key={key} value={key}>
-                  {STATUS_META[key].label} ({STATUS_META[key].range})
+                  {statusMeta[key].label} ({statusMeta[key].range})
                 </option>
               ))}
             </Select>

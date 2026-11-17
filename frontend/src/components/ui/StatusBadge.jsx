@@ -1,12 +1,9 @@
-import {
-  STATUS_META,
-  formatPercent,
-  getOccupancyPercent,
-  getOccupancyStatus,
-} from '../../domain/occupancy';
+import { formatPercent, getOccupancyPercent } from '../../domain/occupancy';
+import { useStatusRules } from './statusRulesContext';
 
 export function StatusBadge({ room }) {
-  const meta = STATUS_META[getOccupancyStatus(room)];
+  const { meta: allMeta, statusOf } = useStatusRules();
+  const meta = allMeta[statusOf(room)];
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${meta.badge}`}
@@ -18,7 +15,8 @@ export function StatusBadge({ room }) {
 }
 
 export function OccupancyBar({ room }) {
-  const meta = STATUS_META[getOccupancyStatus(room)];
+  const { meta: allMeta, statusOf } = useStatusRules();
+  const meta = allMeta[statusOf(room)];
   const percent = Math.min(100, getOccupancyPercent(room));
   return (
     <div
@@ -37,12 +35,13 @@ export function OccupancyBar({ room }) {
 }
 
 export function StatusLegend() {
+  const { meta } = useStatusRules();
   return (
     <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
-      {Object.values(STATUS_META).map((meta) => (
-        <li key={meta.label} className="flex items-center gap-1.5">
-          <span className={`size-2 rounded-full ${meta.dot}`} aria-hidden />
-          {meta.label} ({meta.range})
+      {Object.values(meta).map((item) => (
+        <li key={item.label} className="flex items-center gap-1.5">
+          <span className={`size-2 rounded-full ${item.dot}`} aria-hidden />
+          {item.label} ({item.range})
         </li>
       ))}
     </ul>

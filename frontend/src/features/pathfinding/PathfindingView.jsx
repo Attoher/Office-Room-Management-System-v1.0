@@ -1,14 +1,30 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDownUp, Download, Navigation, Route, X, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  ArrowDownUp,
+  ClipboardCheck,
+  Download,
+  Navigation,
+  Route,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
 import FloorPlanCanvas from '../../components/floorplan/FloorPlanCanvas';
 import Button from '../../components/ui/Button';
 import { Card, CardBody, CardHeader } from '../../components/ui/Card';
 import EmptyState from '../../components/ui/EmptyState';
-import { Field, Select } from '../../components/ui/Field';
+import { Field, Input, Select } from '../../components/ui/Field';
+import { useToast } from '../../components/ui/feedbackContext';
+import { useStatusRules } from '../../components/ui/statusRulesContext';
+import { GUEST_INSTANCE_MAX, GUEST_NAME_MAX, validateGuest } from '../../domain/guestVisit';
+import { STATUS_ORDER } from '../../domain/occupancy';
 import { planBounds, routeSegmentsByFloor } from '../../domain/geometry';
 import { planRoute } from '../../domain/pathfinding';
+import { recordGuestVisit } from '../../services/guestVisitService';
 import FloorTabs from '../management/FloorTabs';
+import GuestHistory from './GuestHistory';
 import RouteResult from './RouteResult';
+import StatusRulesNote from './StatusRulesNote';
 
 const ZOOM_STEPS = [1, 1.5, 2, 3];
 
@@ -18,6 +34,8 @@ function readRouteParam(name) {
   return Number.isInteger(value) && value > 0 ? value : null;
 }
 const PX_PER_METER = 40;
+const STATUS_SWATCH = { hijau: 'bg-emerald-100', kuning: 'bg-yellow-100', merah: 'bg-red-100' };
+const EMPTY_GUEST = { nama: '', instansi: '' };
 
 function exportSvgAsPng(svg, box, filename) {
   const source = new XMLSerializer().serializeToString(svg);
@@ -38,8 +56,21 @@ function exportSvgAsPng(svg, box, filename) {
   image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(source)}`;
 }
 
-export default function PathfindingView({ floors, rooms, roomsById, doors, elements, onNavigate }) {
+export default function PathfindingView({
+  office,
+  floors,
+  rooms,
+  roomsById,
+  doors,
+  elements,
+  onNavigate,
+}) {
   const svgRef = useRef(null);
+  const toast = useToast();
+  const { meta: statusMeta } = useStatusRules();
+  const [guest, setGuest] = useState(EMPTY_GUEST);
+  const [guestErrors, setGuestErrors] = useState({});
+  const [recording, setRecording] = useState(false);
   const [startId, setStartId] = useState(() => readRouteParam('asal'));
   const [targetId, setTargetId] = useState(() => readRouteParam('tujuan'));
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -122,6 +153,42 @@ export default function PathfindingView({ floors, rooms, roomsById, doors, eleme
     setSelectedIndex(0);
   };
 
+  const updateGuest = (field, value) => {
+    setGuest((g) => ({ ...g, [field]: value }));
+    setGuestErrors((errors) => ({ ...errors, [field]: undefined }));
+  };
+
+  // Simpan tamu + jalur yang sedang ditampilkan ke riwayat, lalu kosongkan untuk tamu berikutnya
+  const recordVisit = async (event) => {
+    event.preventDefault();
+    const { errors } = validateGuest(guest);
+    setGuestErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+    setRecording(true);
+    try {
+      await recordGuestVisit({
+        guest,
+        officeId: office.id,
+        start: roomsById.get(startId),
+        target: roomsById.get(targetId),
+        plan,
+        route,
+      });
+      toast.success(`Kunjungan ${guest.nama.trim()} dicatat.`);
+      setGuest(EMPTY_GUEST);
+    } catch (error) {
+      if (error.fieldErrors) setGuestErrors(error.fieldErrors);
+      toast.error(error.message);
+    } finally {
+      setRecording(false);
+    }
+  };
+
+  const showVisitRoute = (asalId, tujuanId) => {
+    chooseStart(asalId);
+    chooseTarget(tujuanId);
+  };
+
   if (rooms.length < 2 || doors.length === 0) {
     return (
       <Card>
@@ -150,75 +217,119 @@ export default function PathfindingView({ floors, rooms, roomsById, doors, eleme
 
   return (
     <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-5">
-      <Card className="h-fit xl:col-span-2">
-        <CardHeader
-          title="Cek jalur tamu"
-          description="Jalur terpendek (meter) lewat pintu, menghindari ruangan penuh."
-        />
-        <CardBody className="space-y-5">
-          <div className="flex items-end gap-2">
-            <div className="flex-1 space-y-3">
-              <Field label="Ruangan asal">
+      <div className="space-y-6 xl:col-span-2">
+        <Card className="h-fit">
+          <CardHeader
+            title="Cek jalur tamu"
+            description="Jalur terpendek (meter) lewat pintu, menghindari ruangan penuh."
+          />
+          <CardBody className="space-y-5">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Nama tamu" error={guestErrors.nama}>
                 {(id) => (
-                  <Select
+                  <Input
                     id={id}
-                    value={startId ?? ''}
-                    onChange={(e) => chooseStart(e.target.value ? Number(e.target.value) : null)}
-                  >
-                    <option value="">Pilih ruangan asal</option>
-                    {roomOptions(targetId)}
-                  </Select>
+                    value={guest.nama}
+                    maxLength={GUEST_NAME_MAX}
+                    error={guestErrors.nama}
+                    placeholder="Contoh: Siti Aminah"
+                    onChange={(e) => updateGuest('nama', e.target.value)}
+                  />
                 )}
               </Field>
-              <Field label="Ruangan tujuan">
+              <Field label="Instansi" error={guestErrors.instansi}>
                 {(id) => (
-                  <Select
+                  <Input
                     id={id}
-                    value={targetId ?? ''}
-                    onChange={(e) => chooseTarget(e.target.value ? Number(e.target.value) : null)}
-                  >
-                    <option value="">Pilih ruangan tujuan</option>
-                    {roomOptions(startId)}
-                  </Select>
+                    value={guest.instansi}
+                    maxLength={GUEST_INSTANCE_MAX}
+                    error={guestErrors.instansi}
+                    placeholder="Contoh: PT Maju Jaya"
+                    onChange={(e) => updateGuest('instansi', e.target.value)}
+                  />
                 )}
               </Field>
             </div>
-            <div className="flex flex-col gap-1 pb-0.5">
-              <Button
-                variant="ghost"
-                size="icon"
-                icon={ArrowDownUp}
-                onClick={swap}
-                disabled={!startId && !targetId}
-                aria-label="Tukar asal dan tujuan"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                icon={X}
-                onClick={reset}
-                disabled={!startId && !targetId}
-                aria-label="Reset pilihan"
-              />
-            </div>
-          </div>
 
-          {plan ? (
-            <RouteResult
-              plan={plan}
-              roomsById={roomsById}
-              floors={floors}
-              selectedIndex={routeIndex}
-              onSelect={setSelectedIndex}
-            />
-          ) : (
-            <div className="flex items-center gap-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
-              <Navigation className="size-4 shrink-0" aria-hidden />
-              Pilih ruangan asal dan tujuan, atau klik langsung di denah.
+            <div className="flex items-end gap-2">
+              <div className="flex-1 space-y-3">
+                <Field label="Ruangan asal">
+                  {(id) => (
+                    <Select
+                      id={id}
+                      value={startId ?? ''}
+                      onChange={(e) => chooseStart(e.target.value ? Number(e.target.value) : null)}
+                    >
+                      <option value="">Pilih ruangan asal</option>
+                      {roomOptions(targetId)}
+                    </Select>
+                  )}
+                </Field>
+                <Field label="Ruangan tujuan">
+                  {(id) => (
+                    <Select
+                      id={id}
+                      value={targetId ?? ''}
+                      onChange={(e) => chooseTarget(e.target.value ? Number(e.target.value) : null)}
+                    >
+                      <option value="">Pilih ruangan tujuan</option>
+                      {roomOptions(startId)}
+                    </Select>
+                  )}
+                </Field>
+              </div>
+              <div className="flex flex-col gap-1 pb-0.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  icon={ArrowDownUp}
+                  onClick={swap}
+                  disabled={!startId && !targetId}
+                  aria-label="Tukar asal dan tujuan"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  icon={X}
+                  onClick={reset}
+                  disabled={!startId && !targetId}
+                  aria-label="Reset pilihan"
+                />
+              </div>
             </div>
-          )}
-        </CardBody>
-      </Card>
+
+            {plan ? (
+              <RouteResult
+                plan={plan}
+                roomsById={roomsById}
+                floors={floors}
+                selectedIndex={routeIndex}
+                onSelect={setSelectedIndex}
+              />
+            ) : (
+              <div className="flex items-center gap-2 rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
+                <Navigation className="size-4 shrink-0" aria-hidden />
+                Pilih ruangan asal dan tujuan, atau klik langsung di denah.
+              </div>
+            )}
+
+            <form onSubmit={recordVisit} className="flex flex-wrap items-center gap-3">
+              <Button type="submit" icon={ClipboardCheck} loading={recording} disabled={!plan}>
+                Catat kunjungan
+              </Button>
+              <p className="min-w-0 flex-1 text-xs text-slate-500">
+                {plan
+                  ? 'Nama, instansi, dan jalur yang dipilih disimpan ke riwayat tamu.'
+                  : 'Isi data tamu dan pilih tujuan untuk mencatat kunjungan.'}
+              </p>
+            </form>
+
+            <StatusRulesNote />
+          </CardBody>
+        </Card>
+
+        <GuestHistory officeId={office?.id} roomsById={roomsById} onShowRoute={showVisitRoute} />
+      </div>
 
       <Card className="xl:col-span-3">
         <CardHeader
@@ -259,18 +370,15 @@ export default function PathfindingView({ floors, rooms, roomsById, doors, eleme
               <li className="flex items-center gap-1.5">
                 <span className="h-1 w-4 rounded bg-blue-600" aria-hidden /> Jalur tamu
               </li>
-              <li className="flex items-center gap-1.5">
-                <span
-                  className="size-3 rounded-sm bg-emerald-100 ring-1 ring-slate-400"
-                  aria-hidden
-                />
-                <span
-                  className="size-3 rounded-sm bg-yellow-100 ring-1 ring-slate-400"
-                  aria-hidden
-                />
-                <span className="size-3 rounded-sm bg-red-100 ring-1 ring-slate-400" aria-hidden />
-                Status isi
-              </li>
+              {STATUS_ORDER.map((key) => (
+                <li key={key} className="flex items-center gap-1.5">
+                  <span
+                    className={`size-3 rounded-sm ring-1 ring-slate-400 ${STATUS_SWATCH[key]}`}
+                    aria-hidden
+                  />
+                  {statusMeta[key].label} {statusMeta[key].range}
+                </li>
+              ))}
             </ul>
             <div className="flex gap-1">
               <Button

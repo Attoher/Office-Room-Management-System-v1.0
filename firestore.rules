@@ -6,6 +6,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Akun admin Back Office (Firebase Authentication, email + sandi), sama seperti dashboard
+    // pemilihan konsep. Sama dengan ADMIN_EMAIL di frontend/src/services/authService.js.
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'admin@room-office-management.app';
+    }
+
     function countersAfter() {
       return getAfter(/databases/$(database)/documents/meta/counters).data;
     }
@@ -46,19 +53,72 @@ service cloud.firestore {
     // Kantor (gedung). Isinya: lantai → ruangan → pintu & elemen.
     match /offices/{officeId} {
       allow read: if true;
-      allow create: if request.resource.data.keys().hasOnly(['id', 'nama', 'alamat', 'created_at'])
+      // Kantor baru wajib punya PIC (nama & nomor telepon)
+      allow create: if request.resource.data.keys().hasOnly(['id', 'nama', 'alamat', 'pic_nama',
+                                                              'pic_telp', 'created_at'])
         && request.resource.data.id is int && string(request.resource.data.id) == officeId
         && validOffice(request.resource.data)
+        && validPic(request.resource.data)
         && request.resource.data.created_at == request.time
         && countersAfter().offices == request.resource.data.id;
-      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nama', 'alamat'])
-        && validOffice(request.resource.data);
+      // Kantor lama tanpa PIC tetap bisa diubah; PIC yang diisi harus valid
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['nama', 'alamat', 'pic_nama', 'pic_telp'])
+        && validOffice(request.resource.data)
+        && (!request.resource.data.keys().hasAny(['pic_nama', 'pic_telp'])
+            || validPic(request.resource.data));
       allow delete: if true;
     }
 
     function validOffice(o) {
       return o.nama is string && o.nama.size() > 0 && o.nama.size() <= 60
         && o.alamat is string && o.alamat.size() <= 120;
+    }
+
+    function validPic(o) {
+      return o.pic_nama is string && o.pic_nama.size() > 0 && o.pic_nama.size() <= 60
+        && o.pic_telp is string && o.pic_telp.matches('^[+]?[0-9]{8,15}$');
+    }
+
+    // Batas persen status ruangan (hijau < kuning <= kuning < merah <= merah), semua kantor
+    // Hanya admin (Back Office) yang boleh mengubahnya.
+    match /settings/occupancy {
+      allow read: if true;
+      allow create, update: if isAdmin()
+        && request.resource.data.keys().hasOnly(['kuning', 'merah', 'updated_at'])
+        && request.resource.data.kuning is int
+        && request.resource.data.kuning >= 1 && request.resource.data.kuning <= 99
+        && request.resource.data.merah is int
+        && request.resource.data.merah > request.resource.data.kuning
+        && request.resource.data.merah <= 100
+        && request.resource.data.updated_at == request.time;
+      allow delete: if false;
+    }
+
+    // Riwayat tamu dari halaman Jalur Tamu. Siapa pun bisa mencatat dan melihat tamu 24 jam
+    // terakhir (riwayat hari ini di Jalur Tamu); riwayat lengkap dan hapus hanya untuk admin.
+    match /guest_visits/{visitId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin()
+        || resource.data.created_at > request.time - duration.value(1, 'd');
+      allow delete: if isAdmin();
+      allow update: if false;
+      allow create: if request.resource.data.keys().hasOnly(['nama', 'instansi', 'office_id',
+                                                              'asal_id', 'asal_nama', 'tujuan_id',
+                                                              'tujuan_nama', 'jarak', 'status',
+                                                              'created_at'])
+        && request.resource.data.nama is string
+        && request.resource.data.nama.size() > 0 && request.resource.data.nama.size() <= 60
+        && request.resource.data.instansi is string
+        && request.resource.data.instansi.size() > 0 && request.resource.data.instansi.size() <= 80
+        && request.resource.data.office_id is int
+        && request.resource.data.asal_id is int && request.resource.data.tujuan_id is int
+        && request.resource.data.asal_nama is string && request.resource.data.asal_nama.size() <= 60
+        && request.resource.data.tujuan_nama is string && request.resource.data.tujuan_nama.size() <= 60
+        && (request.resource.data.jarak == null
+            || (request.resource.data.jarak is number && request.resource.data.jarak >= 0))
+        && request.resource.data.status in ['aman', 'penuh', 'tidak-ada-jalur']
+        && request.resource.data.created_at == request.time;
     }
 
     match /floors/{floorId} {

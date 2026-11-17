@@ -6,7 +6,7 @@ import {
   windowGeometry,
 } from '../../domain/elements';
 import { doorSwingInto, doorType, geometryOfDoor, rectCenter } from '../../domain/geometry';
-import { getOccupancyStatus } from '../../domain/occupancy';
+import { useStatusRules } from '../ui/statusRulesContext';
 
 // Semua ukuran dalam meter (1 unit SVG = 1 m). Gaya mengikuti gambar kerja arsitek:
 // dinding luar tebal, dinding dalam tipis, bukaan pintu/jendela memotong dinding.
@@ -281,6 +281,7 @@ const FloorPlanCanvas = forwardRef(function FloorPlanCanvas(
   },
   ref,
 ) {
+  const { statusOf } = useStatusRules();
   // Hanya pintu & elemen milik lantai yang sedang digambar
   const shownRoomIds = new Set(rooms.map((room) => room.id));
   const floorId = rooms[0]?.lantai_id;
@@ -352,7 +353,7 @@ const FloorPlanCanvas = forwardRef(function FloorPlanCanvas(
               y={room.y}
               width={room.w}
               height={room.h}
-              fill={role?.fill ?? roomFill(room, getOccupancyStatus(room))}
+              fill={role?.fill ?? roomFill(room, statusOf(room))}
             />
             <TypeSymbol room={room} />
           </g>
@@ -463,7 +464,7 @@ const FloorPlanCanvas = forwardRef(function FloorPlanCanvas(
 
       {/* Label & ukuran ruangan paling atas agar tidak tertutup furnitur */}
       {orderedRooms.map((room) => {
-        const status = getOccupancyStatus(room);
+        const status = statusOf(room);
         const role = room.id === startId ? ROLE.start : room.id === targetId ? ROLE.target : null;
         const c = rectCenter(room);
         const nameSize = Math.min(0.5, Math.max(0.3, room.w / 9));

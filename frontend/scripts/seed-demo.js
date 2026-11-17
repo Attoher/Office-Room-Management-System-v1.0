@@ -85,7 +85,12 @@ const existingOffices = (await getDocsFromServer(collection(db, 'offices'))).doc
 );
 const officeId =
   existingOffices.find((o) => o.nama === 'Kantor Pusat')?.id ??
-  (await createOffice({ nama: 'Kantor Pusat', alamat: '' }));
+  (await createOffice({
+    nama: 'Kantor Pusat',
+    alamat: '',
+    pic_nama: 'Admin Kantor',
+    pic_telp: '081234567890',
+  }));
 const floorIds = new Set();
 
 const existingFloors = (await getDocsFromServer(collection(db, 'floors'))).docs.map((d) =>

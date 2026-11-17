@@ -1,5 +1,6 @@
 import { Building2, DoorOpen, Users } from 'lucide-react';
-import { STATUS_META, STATUS_ORDER, formatPercent } from '../../domain/occupancy';
+import { useStatusRules } from '../../components/ui/statusRulesContext';
+import { STATUS_ORDER, formatPercent } from '../../domain/occupancy';
 
 function Stat({ icon: Icon, label, value, hint }) {
   return (
@@ -15,6 +16,7 @@ function Stat({ icon: Icon, label, value, hint }) {
 }
 
 export default function StatsPanel({ summary, doorCount }) {
+  const { meta: STATUS_META } = useStatusRules();
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <Stat icon={Building2} label="Ruangan" value={summary.totalRooms} />

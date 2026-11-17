@@ -12,7 +12,8 @@ import {
 import { db } from './firebase';
 import { AppError, toAppError } from './errors';
 
-// offices/{id}: { id, nama, alamat, created_at } — satu gedung/kantor berisi beberapa lantai
+// offices/{id}: { id, nama, alamat, pic_nama, pic_telp, created_at } — satu gedung/kantor berisi
+// beberapa lantai. PIC = penanggung jawab kantor (wajib untuk kantor baru).
 const officesCol = collection(db, 'offices');
 const countersRef = doc(db, 'meta', 'counters');
 
@@ -21,11 +22,27 @@ const clean = (value) =>
     .trim()
     .replace(/\s+/g, ' ');
 
-function validate({ nama, alamat }) {
-  const value = { nama: clean(nama), alamat: clean(alamat) };
+/** Nomor telepon tanpa spasi/tanda baca, mis. "0812-3456 7890" → "081234567890". */
+export const normalizePhone = (value) => String(value ?? '').replace(/[\s\-.()]/g, '');
+
+export const PHONE_PATTERN = /^\+?[0-9]{8,15}$/;
+
+function validate({ nama, alamat, pic_nama, pic_telp }) {
+  const value = {
+    nama: clean(nama),
+    alamat: clean(alamat),
+    pic_nama: clean(pic_nama),
+    pic_telp: normalizePhone(pic_telp),
+  };
   if (!value.nama) throw new AppError('Nama kantor wajib diisi.');
   if (value.nama.length > 60) throw new AppError('Nama kantor maksimal 60 karakter.');
   if (value.alamat.length > 120) throw new AppError('Alamat maksimal 120 karakter.');
+  if (!value.pic_nama) throw new AppError('Nama PIC wajib diisi.');
+  if (value.pic_nama.length > 60) throw new AppError('Nama PIC maksimal 60 karakter.');
+  if (!value.pic_telp) throw new AppError('Nomor telepon PIC wajib diisi.');
+  if (!PHONE_PATTERN.test(value.pic_telp)) {
+    throw new AppError('Nomor telepon PIC harus 8–15 angka, boleh diawali +.');
+  }
   return value;
 }
 
@@ -38,6 +55,9 @@ export function subscribeOffices(onData, onError) {
           id: d.data().id,
           nama: d.data().nama,
           alamat: d.data().alamat ?? '',
+          // Kantor lama belum punya PIC; diisi saat kantornya diubah
+          pic_nama: d.data().pic_nama ?? '',
+          pic_telp: d.data().pic_telp ?? '',
         })),
       ),
     (error) => onError(toAppError(error)),

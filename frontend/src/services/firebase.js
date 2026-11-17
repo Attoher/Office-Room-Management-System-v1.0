@@ -13,7 +13,8 @@ const firebaseConfig = {
   measurementId: 'G-HHBEEP6G52',
 };
 
-export const db = getFirestore(initializeApp(firebaseConfig));
+export const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app);
 
 // Untuk pengujian lokal: VITE_FIRESTORE_EMULATOR=127.0.0.1:8080 mengarahkan ke Firestore emulator
 const emulator = import.meta.env.VITE_FIRESTORE_EMULATOR;

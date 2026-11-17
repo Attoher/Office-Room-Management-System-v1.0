@@ -1,5 +1,5 @@
 import { rectCenter } from '../../domain/geometry';
-import { STATUS_META, getOccupancyStatus } from '../../domain/occupancy';
+import { useStatusRules } from '../ui/statusRulesContext';
 
 // Satuan meter, sama dengan denah, supaya posisi titik = posisi ruangan
 const FONT = 'Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif';
@@ -25,6 +25,7 @@ export default function ConnectionDiagram({
   selectedId,
   onRoomClick,
 }) {
+  const { meta: statusMeta, statusOf } = useStatusRules();
   const shownIds = new Set(rooms.map((room) => room.id));
 
   // Gabungkan beberapa pintu antara pasangan yang sama menjadi satu garis
@@ -114,7 +115,7 @@ export default function ConnectionDiagram({
 
       {rooms.map((room) => {
         const c = rectCenter(room);
-        const meta = STATUS_META[getOccupancyStatus(room)];
+        const meta = statusMeta[statusOf(room)];
         const selected = room.id === selectedId;
         const vertical = verticalLinks.get(room.id);
         return (

@@ -1,11 +1,12 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
-import { Activity, Loader2, Route, Settings2, WifiOff } from 'lucide-react';
+import { Activity, ClipboardList, Loader2, Route, Settings2, WifiOff } from 'lucide-react';
 import AppHeader from './components/layout/AppHeader';
 import IntroDialog from './components/layout/IntroDialog';
 import SplashScreen from './components/layout/SplashScreen';
 import Button from './components/ui/Button';
 import { Card } from './components/ui/Card';
 import EmptyState from './components/ui/EmptyState';
+import { StatusRulesContext } from './components/ui/statusRulesContext';
 import ManagementView from './features/management/ManagementView';
 import MonitoringView from './features/monitoring/MonitoringView';
 import OfficeOnboarding from './features/offices/OfficeOnboarding';
@@ -15,14 +16,16 @@ import { useOfficeData } from './hooks/useOfficeData';
 
 // Halaman jalur (denah + pencarian rute) baru dimuat saat dibuka
 const PathfindingView = lazy(() => import('./features/pathfinding/PathfindingView'));
+const BackOfficeView = lazy(() => import('./features/backoffice/BackOfficeView'));
 
 const TABS = [
   { id: 'monitoring', label: 'Monitoring', icon: Activity },
   { id: 'management', label: 'Manajemen', icon: Settings2 },
   { id: 'pathfinding', label: 'Jalur Tamu', icon: Route },
+  { id: 'backoffice', label: 'Back Office', icon: ClipboardList },
 ];
 
-// Tab aktif = path URL (/monitoring, /management, /pathfinding) supaya bisa di-refresh dan
+// Tab aktif = path URL (/monitoring, /management, /pathfinding, /backoffice) supaya bisa di-refresh dan
 // dibagikan. vercel.json mengarahkan semua path ke index.html.
 function readTabFromPath() {
   const id = window.location.pathname.replace(/^\/+|\/+$/g, '');
@@ -105,11 +108,25 @@ export default function App() {
         elements={elements}
       />
     );
+  } else if (activeTab === 'backoffice') {
+    content = (
+      <Suspense fallback={<Loading label="Memuat back office…" />}>
+        <BackOfficeView
+          offices={data.offices}
+          floors={data.floors}
+          summaries={active.summaries}
+          activeOfficeId={active.officeId}
+          statusRules={data.statusRules}
+          onSelectOffice={active.selectOffice}
+        />
+      </Suspense>
+    );
   } else {
     content = (
       <Suspense fallback={<Loading label="Memuat peta ruangan…" />}>
         <PathfindingView
           key={active.officeId}
+          office={active.office}
           floors={floors}
           rooms={rooms}
           roomsById={roomsById}
@@ -122,29 +139,31 @@ export default function App() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <AppHeader
-        tabs={TABS}
-        activeTab={activeTab}
-        onTabChange={navigate}
-        status={status}
-        officeSwitcher={
-          data.offices.length > 0 && (
-            <OfficeSwitcher
-              offices={data.offices}
-              floors={data.floors}
-              office={active.office}
-              summaries={active.summaries}
-              onSelect={active.selectOffice}
-            />
-          )
-        }
-      />
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">{content}</main>
-      <footer className="border-t border-slate-200 py-4 text-center text-xs text-slate-500">
-        Office Room Management · ATHA ITS · {new Date().getFullYear()}
-      </footer>
-      <IntroDialog />
-    </div>
+    <StatusRulesContext.Provider value={data.statusRules}>
+      <div className="flex min-h-screen flex-col">
+        <AppHeader
+          tabs={TABS}
+          activeTab={activeTab}
+          onTabChange={navigate}
+          status={status}
+          officeSwitcher={
+            data.offices.length > 0 && (
+              <OfficeSwitcher
+                offices={data.offices}
+                floors={data.floors}
+                office={active.office}
+                summaries={active.summaries}
+                onSelect={active.selectOffice}
+              />
+            )
+          }
+        />
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">{content}</main>
+        <footer className="border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+          Office Room Management · ATHA ITS · {new Date().getFullYear()}
+        </footer>
+        <IntroDialog />
+      </div>
+    </StatusRulesContext.Provider>
   );
 }

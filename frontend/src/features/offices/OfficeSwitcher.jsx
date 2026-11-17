@@ -168,7 +168,12 @@ function OfficeManager({ offices, floors, summaries, activeId, onSelect }) {
           editing === item.id ? (
             <li key={item.id} className="p-3">
               <OfficeForm
-                initialValues={{ nama: item.nama, alamat: item.alamat }}
+                initialValues={{
+                  nama: item.nama,
+                  alamat: item.alamat,
+                  pic_nama: item.pic_nama,
+                  pic_telp: item.pic_telp,
+                }}
                 submitLabel="Simpan"
                 onCancel={() => setEditing(null)}
                 onSubmit={async (values) => {
@@ -190,6 +195,13 @@ function OfficeManager({ offices, floors, summaries, activeId, onSelect }) {
                 </p>
                 <p className="truncate text-xs text-slate-500">
                   {[item.alamat, summaryText(summaries.get(item.id))].filter(Boolean).join(' · ')}
+                </p>
+                <p className="truncate text-xs text-slate-500">
+                  {item.pic_nama ? (
+                    `PIC: ${item.pic_nama} · ${item.pic_telp}`
+                  ) : (
+                    <span className="text-amber-700">PIC belum diisi</span>
+                  )}
                 </p>
               </div>
               <Button

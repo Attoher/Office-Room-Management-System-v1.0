@@ -2,9 +2,12 @@ import { useState } from 'react';
 import Button from '../../components/ui/Button';
 import { Field, Input } from '../../components/ui/Field';
 
-/** Form nama & alamat kantor. `onSubmit(values)` boleh melempar error; pesannya ditampilkan. */
+/**
+ * Form nama, alamat, dan PIC (penanggung jawab) kantor. `onSubmit(values)` boleh melempar error;
+ * pesannya ditampilkan.
+ */
 export default function OfficeForm({
-  initialValues = { nama: '', alamat: '' },
+  initialValues = { nama: '', alamat: '', pic_nama: '', pic_telp: '' },
   submitLabel,
   onSubmit,
   onCancel,
@@ -55,6 +58,34 @@ export default function OfficeForm({
           />
         )}
       </Field>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Nama PIC">
+          {(id) => (
+            <Input
+              id={id}
+              value={values.pic_nama}
+              maxLength={60}
+              autoComplete="name"
+              placeholder="Contoh: Budi Santoso"
+              onChange={(e) => setValues((v) => ({ ...v, pic_nama: e.target.value }))}
+            />
+          )}
+        </Field>
+        <Field label="No. telepon PIC" hint="8–15 angka, boleh diawali +62">
+          {(id) => (
+            <Input
+              id={id}
+              type="tel"
+              inputMode="tel"
+              value={values.pic_telp}
+              maxLength={20}
+              autoComplete="tel"
+              placeholder="Contoh: 081234567890"
+              onChange={(e) => setValues((v) => ({ ...v, pic_telp: e.target.value }))}
+            />
+          )}
+        </Field>
+      </div>
       <div className="flex justify-end gap-2">
         {onCancel && (
           <Button variant="secondary" onClick={onCancel} disabled={saving}>

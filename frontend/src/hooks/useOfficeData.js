@@ -4,10 +4,12 @@ import { subscribeElements } from '../services/elementService';
 import { subscribeFloors } from '../services/floorService';
 import { subscribeOffices } from '../services/officeService';
 import { subscribeRooms } from '../services/roomService';
+import { subscribeStatusRules } from '../services/settingsService';
+import { DEFAULT_STATUS_RULES } from '../domain/occupancy';
 
 /**
  * Data kantor, lantai, ruangan, pintu, dan elemen (jendela, kolom, furnitur) secara realtime
- * dari Firestore. Semua kantor dimuat sekaligus; pemisahan per kantor dilakukan useActiveOffice.
+ * dari Firestore, plus aturan status occupancy (batas kuning & merah). Semua kantor dimuat sekaligus; pemisahan per kantor dilakukan useActiveOffice.
  * status: 'loading' | 'ready' | 'error'
  */
 export function useOfficeData() {
@@ -16,6 +18,7 @@ export function useOfficeData() {
   const [rooms, setRooms] = useState(null);
   const [rawDoors, setRawDoors] = useState(null);
   const [rawElements, setRawElements] = useState(null);
+  const [statusRules, setStatusRules] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -32,6 +35,11 @@ export function useOfficeData() {
       subscribeElements(setRawElements, (elementError) => {
         console.warn(elementError);
         setRawElements([]);
+      }),
+      // Aturan status belum terbaca (mis. rules lama): pakai batas bawaan
+      subscribeStatusRules(setStatusRules, (rulesError) => {
+        console.warn(rulesError);
+        setStatusRules(DEFAULT_STATUS_RULES);
       }),
     ];
     return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
@@ -63,7 +71,8 @@ export function useOfficeData() {
     floors !== null &&
     rooms !== null &&
     rawDoors !== null &&
-    rawElements !== null;
+    rawElements !== null &&
+    statusRules !== null;
   let status = 'ready';
   if (error && !loaded) status = 'error';
   else if (!loaded) status = 'loading';
@@ -75,6 +84,7 @@ export function useOfficeData() {
     roomsById,
     doors,
     elements,
+    statusRules: statusRules ?? DEFAULT_STATUS_RULES,
     status,
     error,
   };
