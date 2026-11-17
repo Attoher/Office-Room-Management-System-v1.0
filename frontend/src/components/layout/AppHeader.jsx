@@ -6,7 +6,14 @@ const STATUS_VIEW = {
   error: { dot: 'bg-red-500', label: 'Terputus' },
 };
 
-export default function AppHeader({ tabs, activeTab, onTabChange, status, officeSwitcher }) {
+export default function AppHeader({
+  tabs,
+  activeTab,
+  onTabChange,
+  status,
+  officeSwitcher,
+  subtitle = 'Monitoring occupancy & jalur tamu',
+}) {
   const statusView = STATUS_VIEW[status];
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur">
@@ -19,9 +26,7 @@ export default function AppHeader({ tabs, activeTab, onTabChange, status, office
             <h1 className="truncate text-base font-semibold text-slate-900">
               Office Room Management
             </h1>
-            <p className="hidden text-xs text-slate-500 sm:block">
-              Monitoring occupancy & jalur tamu
-            </p>
+            <p className="hidden text-xs text-slate-500 sm:block">{subtitle}</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -33,27 +38,29 @@ export default function AppHeader({ tabs, activeTab, onTabChange, status, office
         </div>
       </div>
 
-      <nav className="mx-auto max-w-7xl overflow-x-auto px-4 sm:px-6" aria-label="Menu utama">
-        <ul className="flex gap-1">
-          {tabs.map(({ id, label, icon: Icon }) => (
-            <li key={id}>
-              <button
-                type="button"
-                onClick={() => onTabChange(id)}
-                aria-current={activeTab === id ? 'page' : undefined}
-                className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
-                  activeTab === id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
-                }`}
-              >
-                <Icon className="size-4" aria-hidden />
-                {label}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      {tabs.length > 0 && (
+        <nav className="mx-auto max-w-7xl overflow-x-auto px-4 sm:px-6" aria-label="Menu utama">
+          <ul className="flex gap-1">
+            {tabs.map(({ id, label, icon: Icon }) => (
+              <li key={id}>
+                <button
+                  type="button"
+                  onClick={() => onTabChange(id)}
+                  aria-current={activeTab === id ? 'page' : undefined}
+                  className={`flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+                    activeTab === id
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                  }`}
+                >
+                  <Icon className="size-4" aria-hidden />
+                  {label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
     </header>
   );
 }

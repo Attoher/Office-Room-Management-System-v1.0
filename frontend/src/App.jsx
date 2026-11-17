@@ -141,15 +141,20 @@ export default function App() {
     );
   }
 
+  // Back Office berdiri sendiri: tanpa menu tab, pemilih kantor, dan intro
+  const isBackOffice = activeTab === BACK_OFFICE;
+
   return (
     <StatusRulesContext.Provider value={data.statusRules}>
       <div className="flex min-h-screen flex-col">
         <AppHeader
-          tabs={TABS}
+          tabs={isBackOffice ? [] : TABS}
+          subtitle={isBackOffice ? 'Back Office' : undefined}
           activeTab={activeTab}
           onTabChange={navigate}
           status={status}
           officeSwitcher={
+            !isBackOffice &&
             data.offices.length > 0 && (
               <OfficeSwitcher
                 offices={data.offices}
@@ -165,7 +170,7 @@ export default function App() {
         <footer className="border-t border-slate-200 py-4 text-center text-xs text-slate-500">
           Office Room Management · ATHA ITS · {new Date().getFullYear()}
         </footer>
-        <IntroDialog />
+        {!isBackOffice && <IntroDialog />}
       </div>
     </StatusRulesContext.Provider>
   );
