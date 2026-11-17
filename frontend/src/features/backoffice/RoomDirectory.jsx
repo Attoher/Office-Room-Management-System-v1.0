@@ -6,6 +6,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import { Field, Input, Select } from '../../components/ui/Field';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { ROOM_TYPES } from '../../domain/geometry';
+import { hasOwnRules } from '../../domain/occupancy';
 import { printAsPdf } from './printPdf';
 import RoomDetail from './RoomDetail';
 
@@ -196,6 +197,11 @@ export default function RoomDirectory({ offices, floors, rooms, doors, elements,
                     </td>
                     <td className="px-3 py-3">
                       <StatusBadge room={room} />
+                      {hasOwnRules(room) && (
+                        <p className="mt-1 text-xs text-slate-500">
+                          Aturan sendiri {room.batas_kuning}/{room.batas_merah}%
+                        </p>
+                      )}
                     </td>
                     <td className="px-3 py-3 text-slate-400 print:hidden">
                       <ChevronRight className="size-4" aria-hidden />

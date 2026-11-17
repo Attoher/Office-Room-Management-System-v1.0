@@ -6,6 +6,7 @@ import {
   formatPercent,
   getOccupancyPercent,
   getOccupancyStatus,
+  hasOwnRules,
   statusMeta,
   summarizeRooms,
 } from '../../domain/occupancy';
@@ -75,6 +76,12 @@ export default function StatusImpact({ offices, floors, rooms, current, preview 
         description="Sebaran status saat ini menurut batas di samping, sebelum disimpan."
       />
       <CardBody className="space-y-5">
+        {rooms.some(hasOwnRules) && (
+          <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600 ring-1 ring-inset ring-slate-200">
+            {rooms.filter(hasOwnRules).length} ruangan memakai aturan sendiri dan tidak ikut
+            berubah.
+          </p>
+        )}
         {rooms.length === 0 ? (
           <EmptyState icon={Building2} title="Belum ada ruangan" />
         ) : (

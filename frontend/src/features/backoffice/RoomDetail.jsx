@@ -8,10 +8,17 @@ import { useStatusRules } from '../../components/ui/statusRulesContext';
 import { FURNITURE } from '../../domain/elements';
 import { ROOM_TYPES, doorType, planBounds, routeSegmentsByFloor } from '../../domain/geometry';
 import { formatDateTime } from '../../domain/guestVisit';
-import { formatPercent, getOccupancyPercent } from '../../domain/occupancy';
+import {
+  formatPercent,
+  getOccupancyPercent,
+  hasOwnRules,
+  roomStatusRules,
+  statusMeta,
+} from '../../domain/occupancy';
 import { planRoute } from '../../domain/pathfinding';
 import GuestLog from './GuestLog';
 import { printAsPdf } from './printPdf';
+import RoomRulesCard from './RoomRulesCard';
 
 const formatNumber = (value) => value.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 
@@ -48,12 +55,13 @@ export default function RoomDetail({
   elements,
   onBack,
 }) {
-  const { meta, statusOf } = useStatusRules();
+  const { rules, statusOf } = useStatusRules();
   const [visit, setVisit] = useState(null);
   const [floorChoice, setFloorChoice] = useState(room.lantai_id);
 
   const floorName = (id) => floors.find((f) => f.id === id)?.nama ?? '?';
-  const status = meta[statusOf(room)];
+  // Rentang persen menurut aturan yang berlaku untuk ruangan ini (sendiri atau umum)
+  const status = statusMeta(roomStatusRules(room, rules))[statusOf(room)];
 
   const route = useMemo(
     () => (visit ? visitRoute(visit, rooms, roomsById, doors) : null),
@@ -195,78 +203,84 @@ export default function RoomDetail({
           </CardBody>
         </Card>
 
-        <Card className="print:break-inside-avoid lg:col-span-2">
-          <CardHeader title="Detail ruangan" />
-          <CardBody className="pt-2">
-            <table className="w-full">
-              <tbody className="divide-y divide-slate-100">
-                <DetailRow label="Kantor">{office?.nama ?? '—'}</DetailRow>
-                <DetailRow label="Lantai">{floorName(room.lantai_id)}</DetailRow>
-                <DetailRow label="Tipe">{ROOM_TYPES[room.tipe]?.label ?? room.tipe}</DetailRow>
-                <DetailRow label="Ukuran">
-                  {formatNumber(room.w)} × {formatNumber(room.h)} m
-                </DetailRow>
-                <DetailRow label="Luas">
-                  <span className="font-semibold">{formatNumber(room.luas)} m²</span>
-                </DetailRow>
-                <DetailRow label="Kapasitas">{room.kapasitas_max} orang</DetailRow>
-                <DetailRow label="Luas per orang">
-                  {areaPerPerson == null ? '—' : `${formatNumber(areaPerPerson)} m²`}
-                </DetailRow>
-                <DetailRow label="Isi sekarang">
-                  <span className="tabular-nums">
-                    {room.occupancy}/{room.kapasitas_max} orang ·{' '}
-                    {formatPercent(getOccupancyPercent(room))}
-                  </span>
-                  <div className="mt-1.5">
-                    <OccupancyBar room={room} />
-                  </div>
-                </DetailRow>
-                <DetailRow label="Status">
-                  <span className={`font-medium ${status.text}`}>
-                    {status.label} ({status.range})
-                  </span>{' '}
-                  <span className="text-slate-500">· {status.description}</span>
-                </DetailRow>
-                <DetailRow label={`Pintu (${connections.length})`}>
-                  {connections.length === 0 ? (
-                    <span className="text-amber-700">Belum ada pintu</span>
-                  ) : (
-                    <ul className="space-y-0.5">
-                      {connections.map((c) => (
-                        <li key={c.id}>
-                          {c.other.nama_ruangan}{' '}
-                          <span className="text-xs text-slate-500">· {c.label}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </DetailRow>
-                <DetailRow label="Jendela">{windows.length}</DetailRow>
-                <DetailRow label="Furnitur">
-                  {furnitureCounts.size === 0 ? (
-                    '—'
-                  ) : (
-                    <ul className="space-y-0.5">
-                      {[...furnitureCounts].map(([model, count]) => (
-                        <li key={model}>
-                          {FURNITURE[model]?.label ?? model}{' '}
-                          <span className="text-slate-500">× {count}</span>
-                        </li>
-                      ))}
-                      {seats > 0 && (
-                        <li className="text-xs text-slate-500">{seats} tempat duduk</li>
-                      )}
-                    </ul>
-                  )}
-                </DetailRow>
-                <DetailRow label="PIC kantor">
-                  {office?.pic_nama ? `${office.pic_nama} · ${office.pic_telp}` : '—'}
-                </DetailRow>
-              </tbody>
-            </table>
-          </CardBody>
-        </Card>
+        <div className="space-y-6 lg:col-span-2">
+          <Card className="print:break-inside-avoid">
+            <CardHeader title="Detail ruangan" />
+            <CardBody className="pt-2">
+              <table className="w-full">
+                <tbody className="divide-y divide-slate-100">
+                  <DetailRow label="Kantor">{office?.nama ?? '—'}</DetailRow>
+                  <DetailRow label="Lantai">{floorName(room.lantai_id)}</DetailRow>
+                  <DetailRow label="Tipe">{ROOM_TYPES[room.tipe]?.label ?? room.tipe}</DetailRow>
+                  <DetailRow label="Ukuran">
+                    {formatNumber(room.w)} × {formatNumber(room.h)} m
+                  </DetailRow>
+                  <DetailRow label="Luas">
+                    <span className="font-semibold">{formatNumber(room.luas)} m²</span>
+                  </DetailRow>
+                  <DetailRow label="Kapasitas">{room.kapasitas_max} orang</DetailRow>
+                  <DetailRow label="Luas per orang">
+                    {areaPerPerson == null ? '—' : `${formatNumber(areaPerPerson)} m²`}
+                  </DetailRow>
+                  <DetailRow label="Isi sekarang">
+                    <span className="tabular-nums">
+                      {room.occupancy}/{room.kapasitas_max} orang ·{' '}
+                      {formatPercent(getOccupancyPercent(room))}
+                    </span>
+                    <div className="mt-1.5">
+                      <OccupancyBar room={room} />
+                    </div>
+                  </DetailRow>
+                  <DetailRow label="Status">
+                    <span className={`font-medium ${status.text}`}>
+                      {status.label} ({status.range})
+                    </span>{' '}
+                    <span className="text-slate-500">
+                      · {status.description} ·{' '}
+                      {hasOwnRules(room) ? 'aturan sendiri' : 'aturan umum'}
+                    </span>
+                  </DetailRow>
+                  <DetailRow label={`Pintu (${connections.length})`}>
+                    {connections.length === 0 ? (
+                      <span className="text-amber-700">Belum ada pintu</span>
+                    ) : (
+                      <ul className="space-y-0.5">
+                        {connections.map((c) => (
+                          <li key={c.id}>
+                            {c.other.nama_ruangan}{' '}
+                            <span className="text-xs text-slate-500">· {c.label}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </DetailRow>
+                  <DetailRow label="Jendela">{windows.length}</DetailRow>
+                  <DetailRow label="Furnitur">
+                    {furnitureCounts.size === 0 ? (
+                      '—'
+                    ) : (
+                      <ul className="space-y-0.5">
+                        {[...furnitureCounts].map(([model, count]) => (
+                          <li key={model}>
+                            {FURNITURE[model]?.label ?? model}{' '}
+                            <span className="text-slate-500">× {count}</span>
+                          </li>
+                        ))}
+                        {seats > 0 && (
+                          <li className="text-xs text-slate-500">{seats} tempat duduk</li>
+                        )}
+                      </ul>
+                    )}
+                  </DetailRow>
+                  <DetailRow label="PIC kantor">
+                    {office?.pic_nama ? `${office.pic_nama} · ${office.pic_telp}` : '—'}
+                  </DetailRow>
+                </tbody>
+              </table>
+            </CardBody>
+          </Card>
+          <RoomRulesCard key={`${room.id}-${room.batas_kuning}-${room.batas_merah}`} room={room} />
+        </div>
       </div>
 
       <GuestLog

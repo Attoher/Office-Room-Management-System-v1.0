@@ -37,7 +37,8 @@ React 18 · Vite 5 · Tailwind CSS 3 · Firebase Cloud Firestore
 - **Back Office** di alamat `/back-office` (tidak tampil di menu; dilindungi sandi, satu akun admin):
   - **Ruangan**: daftar ruangan per kantor dan lantai. Klik ruangan untuk melihat denah lantainya, ukuran, luas, kapasitas, status, pintu, jendela, furnitur, dan PIC kantor, beserta **riwayat tamu ruangan itu** (filter tanggal, cari, export CSV, hapus). Klik tamu untuk menggambar jalurnya di denah. Daftar dan detail bisa di-**export ke PDF** (dialog cetak → Simpan sebagai PDF).
   - **Kantor & PIC**: daftar kantor dengan PIC, link telepon dan WhatsApp, serta tambah/ubah/hapus kantor.
-  - **Aturan status**: batas persen kuning dan merah, langsung berlaku di semua halaman.
+  - **Aturan status umum**: batas persen kuning dan merah untuk semua ruangan, langsung berlaku di semua halaman. Panel di sampingnya menunjukkan dampaknya sebelum disimpan.
+  - **Aturan status per ruangan**: di detail ruangan, pilih "Ikuti aturan umum" atau "Aturan sendiri" (batas kuning/merah khusus ruangan itu).
 
 ## Menjalankan
 
@@ -83,7 +84,7 @@ frontend/src/
 | --- | --- |
 | `offices/{id}` | `id`, `nama`, `alamat`, `pic_nama`, `pic_telp` (angka saja, boleh diawali `+`) |
 | `floors/{id}` | `id`, `office_id`, `nama` |
-| `rooms/{id}` | `id`, `nama_ruangan`, `nama_key`, `tipe`, `lantai_id`, `x`, `y`, `w`, `h` (meter), `luas` (= w × h), `kapasitas_max`, `occupancy`, `created_at`, `updated_at` |
+| `rooms/{id}` | `id`, `nama_ruangan`, `nama_key`, `tipe`, `lantai_id`, `x`, `y`, `w`, `h` (meter), `luas` (= w × h), `kapasitas_max`, `occupancy`, `batas_kuning` & `batas_merah` (opsional: aturan status sendiri, hanya admin), `created_at`, `updated_at` |
 | `doors/{id}` | `room_from`, `room_to` (selalu `from < to`), `offset`: jarak tengah pintu dari awal dinding bersama (meter), `swing_into`: ruangan tempat daun pintu membuka, `hinge`: `start` atau `end`, `jenis`: `tunggal`, `ganda`, `geser`, atau `bukaan`. Bernilai `null` untuk penghubung tangga/lift antar lantai |
 | `elements/{id}` | `jenis` (`jendela`, `kolom`, atau `furnitur`) dan `lantai_id`. Jendela: `room_id`, `sisi`, `offset`, `lebar`. Kolom: `x`, `y`, `w`, `h`. Furnitur: `room_id`, `model`, `x`, `y` (relatif ruangan), `rotasi` |
 | `guest_visits/{auto}` | `nama`, `instansi`, `office_id`, `asal_id`, `asal_nama`, `tujuan_id`, `tujuan_nama`, `jarak` (meter, `null` bila tidak ada jalur), `jalur` (ID ruangan yang dilewati; catatan lama tidak punya), `status`, `created_at` |

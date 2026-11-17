@@ -1,11 +1,18 @@
-import { formatPercent, getOccupancyPercent } from '../../domain/occupancy';
+import {
+  formatPercent,
+  getOccupancyPercent,
+  hasOwnRules,
+  roomStatusRules,
+} from '../../domain/occupancy';
 import { useStatusRules } from './statusRulesContext';
 
 export function StatusBadge({ room }) {
-  const { meta: allMeta, statusOf } = useStatusRules();
+  const { meta: allMeta, rules, statusOf } = useStatusRules();
   const meta = allMeta[statusOf(room)];
+  const { kuning, merah } = roomStatusRules(room, rules);
   return (
     <span
+      title={`${hasOwnRules(room) ? 'Aturan sendiri' : 'Aturan umum'}: kuning mulai ${kuning}%, merah mulai ${merah}%`}
       className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${meta.badge}`}
     >
       <span className={`size-1.5 rounded-full ${meta.dot}`} aria-hidden />

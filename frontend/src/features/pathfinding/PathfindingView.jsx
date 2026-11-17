@@ -324,7 +324,7 @@ export default function PathfindingView({
               </p>
             </form>
 
-            <StatusRulesNote />
+            <StatusRulesNote rooms={rooms} />
           </CardBody>
         </Card>
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getOccupancyStatus, summarizeRooms } from './occupancy';
+import { getOccupancyStatus, roomStatusRules, summarizeRooms } from './occupancy';
 import { roomArea, toNameKey, validateRoomInput } from './roomValidation';
 
 const room = (occupancy, kapasitas_max) => ({ occupancy, kapasitas_max });
@@ -68,5 +68,30 @@ describe('validateRoomInput', () => {
 
   it('luas dihitung dari ukuran denah', () => {
     expect(roomArea({ w: 4.5, h: 3 })).toBe(13.5);
+  });
+});
+
+describe('aturan status sendiri per ruangan', () => {
+  const umum = { kuning: 70, merah: 90 };
+  const server = { occupancy: 5, kapasitas_max: 10, batas_kuning: 30, batas_merah: 50 };
+
+  it('menggantikan aturan umum', () => {
+    expect(getOccupancyStatus(server, umum)).toBe('merah');
+    expect(getOccupancyStatus({ ...server, batas_kuning: null, batas_merah: null }, umum)).toBe(
+      'hijau',
+    );
+  });
+
+  it('ruangan tanpa aturan sendiri memakai aturan umum', () => {
+    expect(roomStatusRules({ occupancy: 1, kapasitas_max: 2 }, umum)).toBe(umum);
+    expect(roomStatusRules(server, umum)).toEqual({ kuning: 30, merah: 50 });
+  });
+
+  it('dihitung di ringkasan', () => {
+    expect(summarizeRooms([server, { occupancy: 5, kapasitas_max: 10 }], umum).byStatus).toEqual({
+      hijau: 1,
+      kuning: 0,
+      merah: 1,
+    });
   });
 });

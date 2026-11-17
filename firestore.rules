@@ -29,7 +29,7 @@ service cloud.firestore {
     function validRoom(data, roomId) {
       return data.keys().hasOnly(['id', 'nama_ruangan', 'nama_key', 'tipe', 'lantai_id',
                                   'x', 'y', 'w', 'h', 'luas', 'kapasitas_max', 'occupancy',
-                                  'created_at', 'updated_at'])
+                                  'batas_kuning', 'batas_merah', 'created_at', 'updated_at'])
         && data.id is int && string(data.id) == roomId
         && data.nama_ruangan is string
         && data.nama_ruangan.size() > 0 && data.nama_ruangan.size() <= 60
@@ -43,7 +43,16 @@ service cloud.firestore {
         && data.luas == data.w * data.h
         && data.kapasitas_max is int && data.kapasitas_max > 0 && data.kapasitas_max <= 1000
         && data.occupancy is int && data.occupancy >= 0 && data.occupancy <= data.kapasitas_max
+        && validRoomRules(data)
         && data.updated_at == request.time;
+    }
+
+    // Aturan status khusus ruangan (opsional): keduanya ada atau keduanya tidak ada
+    function validRoomRules(data) {
+      return (!data.keys().hasAny(['batas_kuning', 'batas_merah']))
+        || (data.batas_kuning is int && data.batas_kuning >= 1 && data.batas_kuning <= 99
+            && data.batas_merah is int && data.batas_merah > data.batas_kuning
+            && data.batas_merah <= 100);
     }
 
     function officeExists(id) {
@@ -147,10 +156,14 @@ service cloud.firestore {
       // ID baru harus sama dengan counter yang dinaikkan dalam transaksi yang sama
       allow create: if validRoom(request.resource.data, roomId)
         && request.resource.data.occupancy == 0
+        && !request.resource.data.keys().hasAny(['batas_kuning', 'batas_merah'])
         && request.resource.data.created_at == request.time
         && countersAfter().rooms == request.resource.data.id;
 
+      // Aturan status khusus ruangan hanya boleh diubah admin (Back Office)
       allow update: if validRoom(request.resource.data, roomId)
+        && (!request.resource.data.diff(resource.data).affectedKeys()
+               .hasAny(['batas_kuning', 'batas_merah']) || isAdmin())
         && request.resource.data.id == resource.data.id
         && request.resource.data.lantai_id == resource.data.lantai_id
         && request.resource.data.created_at == resource.data.created_at;

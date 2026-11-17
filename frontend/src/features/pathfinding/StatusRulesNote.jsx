@@ -1,12 +1,13 @@
 import { useStatusRules } from '../../components/ui/statusRulesContext';
-import { STATUS_ORDER } from '../../domain/occupancy';
+import { STATUS_ORDER, hasOwnRules } from '../../domain/occupancy';
 
 /** Aturan warna status ruangan yang berlaku (diatur di Back Office). */
-export default function StatusRulesNote() {
+export default function StatusRulesNote({ rooms = [] }) {
   const { meta } = useStatusRules();
+  const ownRules = rooms.filter(hasOwnRules);
   return (
     <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-inset ring-slate-200">
-      <p className="text-sm font-medium text-slate-700">Aturan status ruangan</p>
+      <p className="text-sm font-medium text-slate-700">Aturan status umum</p>
       <ul className="mt-2 grid grid-cols-3 gap-2">
         {STATUS_ORDER.map((key) => (
           <li
@@ -23,6 +24,15 @@ export default function StatusRulesNote() {
         Persen = jumlah orang ÷ kapasitas. Ruangan ramai diberi biaya tambahan, dan ruangan yang
         sudah penuh (100%) dihindari.
       </p>
+      {ownRules.length > 0 && (
+        <p className="mt-1 text-xs text-slate-500">
+          Aturan sendiri:{' '}
+          {ownRules
+            .map((r) => `${r.nama_ruangan} (kuning ${r.batas_kuning}%, merah ${r.batas_merah}%)`)
+            .join(', ')}
+          .
+        </p>
+      )}
     </div>
   );
 }

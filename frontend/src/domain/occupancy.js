@@ -1,5 +1,6 @@
 // Aturan status occupancy ruangan: hijau < kuning% <= kuning < merah% <= merah.
-// Batasnya bisa diubah di Back Office (settings/occupancy); ini nilai bawaannya.
+// Aturan umum diubah di Back Office (settings/occupancy); ini nilai bawaannya. Ruangan juga bisa
+// punya aturan sendiri (batas_kuning & batas_merah di dokumen ruangan) yang menggantikan aturan umum.
 export const DEFAULT_STATUS_RULES = { kuning: 70, merah: 90 };
 
 export const STATUS_ORDER = ['hijau', 'kuning', 'merah'];
@@ -71,10 +72,21 @@ export function getOccupancyPercent(room) {
   return getOccupancyRatio(room) * 100;
 }
 
+/** Apakah ruangan memakai aturan status sendiri (bukan aturan umum). */
+export function hasOwnRules(room) {
+  return Number.isInteger(room.batas_kuning) && Number.isInteger(room.batas_merah);
+}
+
+/** Aturan yang berlaku untuk ruangan: aturan sendiri bila ada, selain itu aturan umum. */
+export function roomStatusRules(room, rules = DEFAULT_STATUS_RULES) {
+  return hasOwnRules(room) ? { kuning: room.batas_kuning, merah: room.batas_merah } : rules;
+}
+
 export function getOccupancyStatus(room, rules = DEFAULT_STATUS_RULES) {
+  const { kuning, merah } = roomStatusRules(room, rules);
   const percent = getOccupancyPercent(room);
-  if (percent >= rules.merah) return 'merah';
-  if (percent >= rules.kuning) return 'kuning';
+  if (percent >= merah) return 'merah';
+  if (percent >= kuning) return 'kuning';
   return 'hijau';
 }
 

@@ -50,8 +50,8 @@ export default function StatusRulesForm({ rules, offices, floors, rooms }) {
     <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
       <Card>
         <CardHeader
-          title="Aturan status ruangan"
-          description="Persen = jumlah orang ÷ kapasitas ruangan. Berlaku untuk semua kantor."
+          title="Aturan status umum"
+          description="Persen = jumlah orang ÷ kapasitas. Berlaku untuk semua ruangan yang tidak punya aturan sendiri (diatur di detail ruangan)."
         />
         <CardBody>
           <form onSubmit={submit} className="space-y-5">
