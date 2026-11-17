@@ -1,6 +1,5 @@
 import {
   collection,
-  deleteField,
   doc,
   getDocs,
   increment,
@@ -15,14 +14,12 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { geometryError, snapToGrid } from '../domain/geometry';
-import { validateStatusRules } from '../domain/occupancy';
 import { roomArea, toNameKey, validateRoomInput } from '../domain/roomValidation';
 import { db } from './firebase';
 import { AppError, toAppError } from './errors';
 
 // rooms/{id}: { id, nama_ruangan, nama_key, tipe, lantai_id, x, y, w, h, luas,
-//               kapasitas_max, occupancy, batas_kuning?, batas_merah?, created_at, updated_at }
-// batas_kuning & batas_merah (opsional): aturan status khusus ruangan ini, hanya diubah admin.
+//               kapasitas_max, occupancy, created_at, updated_at }
 // Posisi & ukuran dalam meter; luas selalu w × h.
 // meta/counters: { rooms, floors } — ID numerik terakhir yang dipakai
 const roomsCol = collection(db, 'rooms');
@@ -44,8 +41,6 @@ const toRoom = (snapshot) => {
     luas: d.luas,
     kapasitas_max: d.kapasitas_max,
     occupancy: d.occupancy,
-    batas_kuning: d.batas_kuning ?? null,
-    batas_merah: d.batas_merah ?? null,
   };
 };
 
@@ -214,28 +209,6 @@ export async function resetAllOccupancy(rooms) {
         batch.update(roomRef(room.id), { occupancy: 0, updated_at: serverTimestamp() }),
       );
     await batch.commit();
-  } catch (error) {
-    throw toAppError(error);
-  }
-}
-
-/**
- * Aturan status khusus ruangan (Back Office, khusus admin). `rules` = { kuning, merah }, atau null
- * untuk kembali ke aturan umum.
- */
-export async function setRoomStatusRules(room, rules) {
-  let fields;
-  if (rules) {
-    const { value, errors } = validateStatusRules(rules);
-    if (Object.keys(errors).length > 0) {
-      throw new AppError(Object.values(errors)[0], { fieldErrors: errors });
-    }
-    fields = { batas_kuning: value.kuning, batas_merah: value.merah };
-  } else {
-    fields = { batas_kuning: deleteField(), batas_merah: deleteField() };
-  }
-  try {
-    await updateDoc(roomRef(room.id), { ...fields, updated_at: serverTimestamp() });
   } catch (error) {
     throw toAppError(error);
   }

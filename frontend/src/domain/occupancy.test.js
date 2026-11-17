@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getOccupancyStatus, roomStatusRules, summarizeRooms } from './occupancy';
+import { getOccupancyStatus, officeStatusRules, summarizeRooms } from './occupancy';
 import { roomArea, toNameKey, validateRoomInput } from './roomValidation';
 
 const room = (occupancy, kapasitas_max) => ({ occupancy, kapasitas_max });
@@ -71,27 +71,15 @@ describe('validateRoomInput', () => {
   });
 });
 
-describe('aturan status sendiri per ruangan', () => {
-  const umum = { kuning: 70, merah: 90 };
-  const server = { occupancy: 5, kapasitas_max: 10, batas_kuning: 30, batas_merah: 50 };
-
-  it('menggantikan aturan umum', () => {
-    expect(getOccupancyStatus(server, umum)).toBe('merah');
-    expect(getOccupancyStatus({ ...server, batas_kuning: null, batas_merah: null }, umum)).toBe(
-      'hijau',
-    );
+describe('aturan status per kantor', () => {
+  it('kantor tanpa aturan sendiri memakai nilai bawaan', () => {
+    expect(officeStatusRules({ nama: 'A' })).toEqual({ kuning: 70, merah: 90 });
+    expect(officeStatusRules(null)).toEqual({ kuning: 70, merah: 90 });
   });
 
-  it('ruangan tanpa aturan sendiri memakai aturan umum', () => {
-    expect(roomStatusRules({ occupancy: 1, kapasitas_max: 2 }, umum)).toBe(umum);
-    expect(roomStatusRules(server, umum)).toEqual({ kuning: 30, merah: 50 });
-  });
-
-  it('dihitung di ringkasan', () => {
-    expect(summarizeRooms([server, { occupancy: 5, kapasitas_max: 10 }], umum).byStatus).toEqual({
-      hijau: 1,
-      kuning: 0,
-      merah: 1,
-    });
+  it('aturan sendiri kantor dipakai untuk status ruangannya', () => {
+    const rules = officeStatusRules({ batas_kuning: 30, batas_merah: 50 });
+    expect(rules).toEqual({ kuning: 30, merah: 50 });
+    expect(getOccupancyStatus({ occupancy: 5, kapasitas_max: 10 }, rules)).toBe('merah');
   });
 });

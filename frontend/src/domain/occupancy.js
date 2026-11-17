@@ -1,6 +1,6 @@
 // Aturan status occupancy ruangan: hijau < kuning% <= kuning < merah% <= merah.
-// Aturan umum diubah di Back Office (settings/occupancy); ini nilai bawaannya. Ruangan juga bisa
-// punya aturan sendiri (batas_kuning & batas_merah di dokumen ruangan) yang menggantikan aturan umum.
+// Setiap kantor bisa punya aturan sendiri (batas_kuning & batas_merah di dokumen kantor, diatur di
+// Back Office); kantor tanpa aturan sendiri memakai nilai bawaan ini.
 export const DEFAULT_STATUS_RULES = { kuning: 70, merah: 90 };
 
 export const STATUS_ORDER = ['hijau', 'kuning', 'merah'];
@@ -72,21 +72,22 @@ export function getOccupancyPercent(room) {
   return getOccupancyRatio(room) * 100;
 }
 
-/** Apakah ruangan memakai aturan status sendiri (bukan aturan umum). */
-export function hasOwnRules(room) {
-  return Number.isInteger(room.batas_kuning) && Number.isInteger(room.batas_merah);
+/** Apakah kantor memakai aturan status sendiri (bukan nilai bawaan). */
+export function hasOwnRules(office) {
+  return Number.isInteger(office?.batas_kuning) && Number.isInteger(office?.batas_merah);
 }
 
-/** Aturan yang berlaku untuk ruangan: aturan sendiri bila ada, selain itu aturan umum. */
-export function roomStatusRules(room, rules = DEFAULT_STATUS_RULES) {
-  return hasOwnRules(room) ? { kuning: room.batas_kuning, merah: room.batas_merah } : rules;
+/** Aturan status yang berlaku di kantor: aturan sendiri bila ada, selain itu nilai bawaan. */
+export function officeStatusRules(office) {
+  return hasOwnRules(office)
+    ? { kuning: office.batas_kuning, merah: office.batas_merah }
+    : DEFAULT_STATUS_RULES;
 }
 
 export function getOccupancyStatus(room, rules = DEFAULT_STATUS_RULES) {
-  const { kuning, merah } = roomStatusRules(room, rules);
   const percent = getOccupancyPercent(room);
-  if (percent >= merah) return 'merah';
-  if (percent >= kuning) return 'kuning';
+  if (percent >= rules.merah) return 'merah';
+  if (percent >= rules.kuning) return 'kuning';
   return 'hijau';
 }
 

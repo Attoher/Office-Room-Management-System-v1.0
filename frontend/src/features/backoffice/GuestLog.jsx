@@ -51,13 +51,13 @@ function downloadText(text, filename) {
 }
 
 /**
- * Riwayat tamu: filter tanggal, kantor, kata kunci, export CSV, dan hapus. Dengan `room` hanya
- * tamu yang berangkat dari atau menuju ruangan itu; klik baris memanggil `onSelectVisit`.
+ * Riwayat tamu: filter tanggal, kantor, kata kunci, export CSV, dan hapus. Dengan `office` hanya
+ * tamu kantor itu (tanpa pilihan kantor); klik baris memanggil `onSelectVisit`.
  */
 export default function GuestLog({
   offices,
   activeOfficeId,
-  room = null,
+  office = null,
   selectedVisitId = null,
   onSelectVisit,
 }) {
@@ -65,9 +65,9 @@ export default function GuestLog({
   const confirm = useConfirm();
   const [range, setRange] = useState(defaultRange);
   const [officeFilter, setOfficeFilter] = useState(
-    room ? 'semua' : String(activeOfficeId ?? 'semua'),
+    office ? String(office.id) : String(activeOfficeId ?? 'semua'),
   );
-  const showOffice = !room && officeFilter === 'semua';
+  const showOffice = !office && officeFilter === 'semua';
   const [search, setSearch] = useState('');
   const [visits, setVisits] = useState(null);
   const [error, setError] = useState(null);
@@ -96,11 +96,10 @@ export default function GuestLog({
     () =>
       (visits ?? []).filter(
         (v) =>
-          (room ? v.tujuan_id === room.id || v.asal_id === room.id : true) &&
           (officeFilter === 'semua' || v.office_id === Number(officeFilter)) &&
           matchesVisit(v, search),
       ),
-    [visits, officeFilter, search, room],
+    [visits, officeFilter, search],
   );
 
   const instanceCount = new Set(shown.map((v) => v.instansi.toLowerCase())).size;
@@ -122,8 +121,8 @@ export default function GuestLog({
   };
 
   const exportCsv = () => {
-    const prefix = room
-      ? `riwayat-tamu-${room.nama_ruangan.toLowerCase().replace(/\s+/g, '-')}`
+    const prefix = office
+      ? `riwayat-tamu-${office.nama.toLowerCase().replace(/\s+/g, '-')}`
       : 'riwayat-tamu';
     downloadText(visitsToCsv(shown, officeName), `${prefix}-${range.from}_${range.to}.csv`);
   };
@@ -225,15 +224,19 @@ export default function GuestLog({
   return (
     <Card className="print:break-inside-avoid">
       <CardHeader
-        title={room ? 'Riwayat tamu ruangan ini' : 'Riwayat tamu'}
+        title={office ? 'Riwayat tamu kantor ini' : 'Riwayat tamu'}
         description={
-          visits && rangeValid
-            ? `${shown.length} kunjungan · ${instanceCount} instansi · ${formatDay(range.from)} – ${formatDay(range.to)}${
-                onSelectVisit && shown.length > 0
-                  ? '. Klik tamu untuk melihat jalurnya di denah.'
-                  : ''
-              }`
-            : 'Dicatat dari halaman Jalur Tamu'
+          visits && rangeValid ? (
+            <>
+              {shown.length} kunjungan · {instanceCount} instansi · {formatDay(range.from)} –{' '}
+              {formatDay(range.to)}
+              {onSelectVisit && shown.length > 0 && (
+                <span className="print:hidden">. Klik tamu untuk melihat jalurnya di denah.</span>
+              )}
+            </>
+          ) : (
+            'Dicatat dari halaman Jalur Tamu'
+          )
         }
         action={
           <span className="print:hidden">
@@ -251,7 +254,7 @@ export default function GuestLog({
       />
       <CardBody>
         <div
-          className={`mb-4 grid grid-cols-1 gap-3 print:hidden sm:grid-cols-2 ${room ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}
+          className={`mb-4 grid grid-cols-1 gap-3 print:hidden sm:grid-cols-2 ${office ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}
         >
           <Field label="Dari tanggal">
             {(id) => (
@@ -275,7 +278,7 @@ export default function GuestLog({
               />
             )}
           </Field>
-          {!room && (
+          {!office && (
             <Field label="Kantor">
               {(id) => (
                 <Select

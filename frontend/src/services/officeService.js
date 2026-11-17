@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteField,
   deleteDoc,
   doc,
   onSnapshot,
@@ -9,11 +10,13 @@ import {
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore';
+import { validateStatusRules } from '../domain/occupancy';
 import { db } from './firebase';
 import { AppError, toAppError } from './errors';
 
-// offices/{id}: { id, nama, alamat, pic_nama, pic_telp, created_at } — satu gedung/kantor berisi
-// beberapa lantai. PIC = penanggung jawab kantor (wajib untuk kantor baru).
+// offices/{id}: { id, nama, alamat, pic_nama, pic_telp, batas_kuning?, batas_merah?, created_at }
+// Satu gedung/kantor berisi beberapa lantai. PIC = penanggung jawab kantor (wajib untuk kantor baru).
+// batas_kuning & batas_merah (opsional, khusus admin): aturan status ruangan di kantor ini.
 const officesCol = collection(db, 'offices');
 const countersRef = doc(db, 'meta', 'counters');
 
@@ -58,6 +61,8 @@ export function subscribeOffices(onData, onError) {
           // Kantor lama belum punya PIC; diisi saat kantornya diubah
           pic_nama: d.data().pic_nama ?? '',
           pic_telp: d.data().pic_telp ?? '',
+          batas_kuning: d.data().batas_kuning ?? null,
+          batas_merah: d.data().batas_merah ?? null,
         })),
       ),
     (error) => onError(toAppError(error)),
@@ -95,6 +100,28 @@ export async function deleteOffice(office, floors) {
   }
   try {
     await deleteDoc(doc(officesCol, String(office.id)));
+  } catch (error) {
+    throw toAppError(error);
+  }
+}
+
+/**
+ * Aturan status kantor (Back Office, khusus admin). `rules` = { kuning, merah }, atau null untuk
+ * kembali ke nilai bawaan.
+ */
+export async function setOfficeStatusRules(office, rules) {
+  let fields;
+  if (rules) {
+    const { value, errors } = validateStatusRules(rules);
+    if (Object.keys(errors).length > 0) {
+      throw new AppError(Object.values(errors)[0], { fieldErrors: errors });
+    }
+    fields = { batas_kuning: value.kuning, batas_merah: value.merah };
+  } else {
+    fields = { batas_kuning: deleteField(), batas_merah: deleteField() };
+  }
+  try {
+    await updateDoc(doc(officesCol, String(office.id)), fields);
   } catch (error) {
     throw toAppError(error);
   }

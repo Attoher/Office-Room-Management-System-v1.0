@@ -7,6 +7,7 @@ import Button from './components/ui/Button';
 import { Card } from './components/ui/Card';
 import EmptyState from './components/ui/EmptyState';
 import { StatusRulesContext } from './components/ui/statusRulesContext';
+import { officeStatusRules } from './domain/occupancy';
 import ManagementView from './features/management/ManagementView';
 import MonitoringView from './features/monitoring/MonitoringView';
 import OfficeOnboarding from './features/offices/OfficeOnboarding';
@@ -120,10 +121,6 @@ export default function App() {
           rooms={data.rooms}
           doors={data.doors}
           elements={data.elements}
-          summaries={active.summaries}
-          activeOfficeId={active.officeId}
-          statusRules={data.statusRules}
-          onSelectOffice={active.selectOffice}
         />
       </Suspense>
     );
@@ -148,7 +145,8 @@ export default function App() {
   const isBackOffice = activeTab === BACK_OFFICE;
 
   return (
-    <StatusRulesContext.Provider value={data.statusRules}>
+    // Halaman biasa memakai aturan status kantor yang dipilih; Back Office mengatur per kantor
+    <StatusRulesContext.Provider value={officeStatusRules(active.office)}>
       <div className="flex min-h-screen flex-col">
         <AppHeader
           tabs={isBackOffice ? [] : TABS}
@@ -173,7 +171,7 @@ export default function App() {
           {content}
         </main>
         <footer className="border-t border-slate-200 py-4 text-center text-xs text-slate-500 print:hidden">
-          Office Room Management · ATHA ITS · {new Date().getFullYear()}
+          Office Room Management · Institut Teknologi Sepuluh Nopember · {new Date().getFullYear()}
         </footer>
         {!isBackOffice && <IntroDialog />}
       </div>

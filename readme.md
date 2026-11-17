@@ -11,7 +11,7 @@ React 18 · Vite 5 · Tailwind CSS 3 · Firebase Cloud Firestore
   - Kantor dikelola dari menu "Kelola kantor" atau Back Office: tambah, ubah nama, alamat, dan PIC, serta hapus (hanya kantor kosong).
   - Kantor baru wajib punya **PIC** (nama dan nomor telepon 8–15 angka).
   - Semua halaman hanya menampilkan isi kantor yang dipilih, dan nama ruangan cukup unik per kantor.
-- **Monitoring**: kartu per ruangan dengan status hijau, kuning, dan merah. Batasnya diatur di Back Office (bawaan: hijau < 70%, kuning 70–90%, merah ≥ 90%). Tersedia pencarian, filter lantai dan status, ringkasan statistik, serta tombol tambah/kurangi orang. Perubahan dari perangkat lain tampil otomatis.
+- **Monitoring**: kartu per ruangan dengan status hijau, kuning, dan merah. Batasnya diatur per kantor di Back Office (bawaan: hijau < 70%, kuning 70–90%, merah ≥ 90%). Tersedia pencarian, filter lantai dan status, ringkasan statistik, serta tombol tambah/kurangi orang. Perubahan dari perangkat lain tampil otomatis.
 - **Editor denah (Manajemen)**: denah multi lantai di grid 0,5 m.
   - Gambar ruangan sebagai kotak, lalu geser dan ubah ukurannya dari sudut. Luas dihitung otomatis dari panjang × lebar.
   - Tipe ruangan: Ruangan, Lorong, Tangga, Lift, atau Area luar (taman, parkir, teras: tanpa dinding, tetap bisa dilewati tamu).
@@ -32,13 +32,12 @@ React 18 · Vite 5 · Tailwind CSS 3 · Firebase Cloud Firestore
   - Jalur bisa lintas lantai lewat tangga atau lift.
   - Ruangan penuh dihindari, dan ruangan yang ramai diberi biaya tambahan.
   - Jalur digambar di denah per lantai dan diperbarui otomatis saat occupancy berubah.
-  - Aturan status (persen hijau/kuning/merah) yang berlaku ditampilkan di samping jalur dan di legenda denah.
+  - Aturan status kantor (persen hijau/kuning/merah) ditampilkan di samping jalur dan di legenda denah.
   - **Data tamu**: isi nama dan instansi, pilih tujuan, lalu "Catat kunjungan". Riwayat tamu hari ini tampil di bawahnya; klik untuk menampilkan jalurnya lagi.
-- **Back Office** di alamat `/back-office` (tidak tampil di menu; dilindungi sandi, satu akun admin):
-  - **Ruangan**: daftar ruangan per kantor dan lantai. Klik ruangan untuk melihat denah lantainya, ukuran, luas, kapasitas, status, pintu, jendela, furnitur, dan PIC kantor, beserta **riwayat tamu ruangan itu** (filter tanggal, cari, export CSV, hapus). Klik tamu untuk menggambar jalurnya di denah. Daftar dan detail bisa di-**export ke PDF** (dialog cetak → Simpan sebagai PDF).
-  - **Kantor & PIC**: daftar kantor dengan PIC, link telepon dan WhatsApp, serta tambah/ubah/hapus kantor.
-  - **Aturan status umum**: batas persen kuning dan merah untuk semua ruangan, langsung berlaku di semua halaman. Panel di sampingnya menunjukkan dampaknya sebelum disimpan.
-  - **Aturan status per ruangan**: di detail ruangan, pilih "Ikuti aturan umum" atau "Aturan sendiri" (batas kuning/merah khusus ruangan itu).
+- **Back Office** di alamat `/back-office` (tidak tampil di menu, tanpa tab; dilindungi sandi, satu akun admin):
+  - **Daftar kantor**: PIC, jumlah lantai/ruangan, luas, isi, sebaran status, dan aturan statusnya. Tambah kantor dan export PDF.
+  - **Detail kantor** (klik kantor): ubah data & PIC, hapus kantor, ringkasan, denah per lantai, tabel detail kantor, **aturan status kantor** (batas kuning & merah dengan pratinjau ruangan yang berubah), tabel detail ruangan (klik untuk menandai di denah), dan **riwayat tamu kantor** (filter tanggal, cari, export CSV, hapus; klik tamu untuk menggambar jalurnya di denah).
+  - **Export PDF** lewat dialog cetak (Simpan sebagai PDF): semua lantai, detail kantor, aturan, ruangan, dan riwayat tamu.
 
 ## Menjalankan
 
@@ -82,16 +81,15 @@ frontend/src/
 
 | Koleksi | Isi |
 | --- | --- |
-| `offices/{id}` | `id`, `nama`, `alamat`, `pic_nama`, `pic_telp` (angka saja, boleh diawali `+`) |
+| `offices/{id}` | `id`, `nama`, `alamat`, `pic_nama`, `pic_telp` (angka saja, boleh diawali `+`), `batas_kuning` & `batas_merah` (opsional: aturan status kantor, hanya admin; tanpa ini memakai 70/90) |
 | `floors/{id}` | `id`, `office_id`, `nama` |
-| `rooms/{id}` | `id`, `nama_ruangan`, `nama_key`, `tipe`, `lantai_id`, `x`, `y`, `w`, `h` (meter), `luas` (= w × h), `kapasitas_max`, `occupancy`, `batas_kuning` & `batas_merah` (opsional: aturan status sendiri, hanya admin), `created_at`, `updated_at` |
+| `rooms/{id}` | `id`, `nama_ruangan`, `nama_key`, `tipe`, `lantai_id`, `x`, `y`, `w`, `h` (meter), `luas` (= w × h), `kapasitas_max`, `occupancy`, `created_at`, `updated_at` |
 | `doors/{id}` | `room_from`, `room_to` (selalu `from < to`), `offset`: jarak tengah pintu dari awal dinding bersama (meter), `swing_into`: ruangan tempat daun pintu membuka, `hinge`: `start` atau `end`, `jenis`: `tunggal`, `ganda`, `geser`, atau `bukaan`. Bernilai `null` untuk penghubung tangga/lift antar lantai |
 | `elements/{id}` | `jenis` (`jendela`, `kolom`, atau `furnitur`) dan `lantai_id`. Jendela: `room_id`, `sisi`, `offset`, `lebar`. Kolom: `x`, `y`, `w`, `h`. Furnitur: `room_id`, `model`, `x`, `y` (relatif ruangan), `rotasi` |
 | `guest_visits/{auto}` | `nama`, `instansi`, `office_id`, `asal_id`, `asal_nama`, `tujuan_id`, `tujuan_nama`, `jarak` (meter, `null` bila tidak ada jalur), `jalur` (ID ruangan yang dilewati; catatan lama tidak punya), `status`, `created_at` |
-| `settings/occupancy` | `kuning`, `merah`: batas persen status (berlaku untuk semua kantor), `updated_at` |
 | `meta/counters` | `rooms`, `floors`, `offices`: ID numerik terakhir |
 
-Halaman lain berjalan tanpa login; hanya **Back Office** yang memakai sandi (cara yang sama dengan dashboard pemilihan konsep). Sandinya milik akun admin `admin@room-office-management.app` di Firebase Authentication (Email/Password); pengguna cukup mengetik sandi. Sandi diganti lewat Firebase Console, lalu Authentication, lalu Users. `firestore.rules` membatasi ubah aturan status, riwayat tamu lengkap (lebih dari 24 jam terakhir), dan hapus riwayat tamu hanya untuk akun itu.
+Halaman lain berjalan tanpa login; hanya **Back Office** yang memakai sandi (cara yang sama dengan dashboard pemilihan konsep). Sandinya milik akun admin `admin@room-office-management.app` di Firebase Authentication (Email/Password); pengguna cukup mengetik sandi. Sandi diganti lewat Firebase Console, lalu Authentication, lalu Users. `firestore.rules` membatasi ubah aturan status kantor, riwayat tamu lengkap (lebih dari 24 jam terakhir), dan hapus riwayat tamu hanya untuk akun itu.
 
 `firestore.rules` membatasi bentuk dan rentang data: posisi kelipatan 0,5 m, luas sama dengan panjang × lebar, occupancy di antara 0 dan kapasitas, ID berurutan, pintu satu lantai punya posisi, dan pintu antar lantai hanya antara tangga/lift. Ruangan yang bertumpuk dicegah di aplikasi. Untuk memasang rules:
 
