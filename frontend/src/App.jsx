@@ -117,6 +117,7 @@ export default function App() {
         <BackOfficeView
           offices={data.offices}
           floors={data.floors}
+          rooms={data.rooms}
           summaries={active.summaries}
           activeOfficeId={active.officeId}
           statusRules={data.statusRules}

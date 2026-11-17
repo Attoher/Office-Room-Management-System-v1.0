@@ -17,6 +17,7 @@ const SECTIONS = [
 export default function BackOfficeView({
   offices,
   floors,
+  rooms,
   summaries,
   activeOfficeId,
   statusRules,
@@ -87,7 +88,13 @@ export default function BackOfficeView({
         />
       )}
       {section === 'status' && (
-        <StatusRulesForm key={`${statusRules.kuning}-${statusRules.merah}`} rules={statusRules} />
+        <StatusRulesForm
+          key={`${statusRules.kuning}-${statusRules.merah}`}
+          rules={statusRules}
+          offices={offices}
+          floors={floors}
+          rooms={rooms}
+        />
       )}
     </div>
   );
