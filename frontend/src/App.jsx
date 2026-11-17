@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
-import { Activity, ClipboardList, Loader2, Route, Settings2, WifiOff } from 'lucide-react';
+import { Activity, Loader2, Route, Settings2, WifiOff } from 'lucide-react';
 import AppHeader from './components/layout/AppHeader';
 import IntroDialog from './components/layout/IntroDialog';
 import SplashScreen from './components/layout/SplashScreen';
@@ -22,13 +22,16 @@ const TABS = [
   { id: 'monitoring', label: 'Monitoring', icon: Activity },
   { id: 'management', label: 'Manajemen', icon: Settings2 },
   { id: 'pathfinding', label: 'Jalur Tamu', icon: Route },
-  { id: 'backoffice', label: 'Back Office', icon: ClipboardList },
 ];
 
-// Tab aktif = path URL (/monitoring, /management, /pathfinding, /backoffice) supaya bisa di-refresh dan
+// Back Office tidak ada di menu; hanya dibuka lewat alamat /back-office (seperti dashboard)
+const BACK_OFFICE = 'back-office';
+
+// Tab aktif = path URL (/monitoring, /management, /pathfinding, /back-office) supaya bisa di-refresh dan
 // dibagikan. vercel.json mengarahkan semua path ke index.html.
 function readTabFromPath() {
   const id = window.location.pathname.replace(/^\/+|\/+$/g, '');
+  if (id === BACK_OFFICE) return id;
   return TABS.some((tab) => tab.id === id) ? id : TABS[0].id;
 }
 
@@ -108,7 +111,7 @@ export default function App() {
         elements={elements}
       />
     );
-  } else if (activeTab === 'backoffice') {
+  } else if (activeTab === BACK_OFFICE) {
     content = (
       <Suspense fallback={<Loading label="Memuat back office…" />}>
         <BackOfficeView

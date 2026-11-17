@@ -34,7 +34,7 @@ React 18 · Vite 5 · Tailwind CSS 3 · Firebase Cloud Firestore
   - Jalur digambar di denah per lantai dan diperbarui otomatis saat occupancy berubah.
   - Aturan status (persen hijau/kuning/merah) yang berlaku ditampilkan di samping jalur dan di legenda denah.
   - **Data tamu**: isi nama dan instansi, pilih tujuan, lalu "Catat kunjungan". Riwayat tamu hari ini tampil di bawahnya; klik untuk menampilkan jalurnya lagi.
-- **Back Office** (dilindungi sandi, satu akun admin):
+- **Back Office** di alamat `/back-office` (tidak tampil di menu; dilindungi sandi, satu akun admin):
   - **Riwayat tamu** semua kantor: filter tanggal, kantor, dan kata kunci, export CSV, dan hapus catatan.
   - **Kantor & PIC**: daftar kantor dengan PIC, link telepon dan WhatsApp, serta tambah/ubah/hapus kantor.
   - **Aturan status**: batas persen kuning dan merah, langsung berlaku di semua halaman.
